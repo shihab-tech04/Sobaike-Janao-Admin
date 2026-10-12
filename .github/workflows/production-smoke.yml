@@ -16,8 +16,8 @@ jobs:
     timeout-minutes: 10
     env:
       SITE_URL: https://shihab-tech04.github.io/Sobaike-Janao-Admin/
-      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://ahiaymyqfmyyrjkwgvhi.supabase.co' }}
+      SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_3wqaYyxPJ6spRNS0jNOi4w_69Jqc3-b' }}
 
     steps:
       - name: Verify live Admin site

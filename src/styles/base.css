@@ -1,0 +1,106 @@
+/* Sobai Ke Janao Styles Foundation */
+:root {
+  color-scheme: light;
+  --bg-default: #f8fafc;
+  --bg-subtle: #f1f5f9;
+  --surface-default: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f8fafc;
+  --border-default: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --primary-default: #0284c7;
+  --primary-hover: #0369a1;
+  --status-success: #16a34a;
+  --status-warning: #d97706;
+  --status-error: #dc2626;
+  --status-info: #0284c7;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg-default: #090d16;
+  --bg-subtle: #0f172a;
+  --surface-default: #0f172a;
+  --surface-raised: #1e293b;
+  --surface-sunken: #090d16;
+  --border-default: #1e293b;
+  --border-subtle: #0f172a;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --primary-default: #38bdf8;
+  --primary-hover: #0284c7;
+  --status-success: #22c55e;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-info: #38bdf8;
+}
+
+body {
+  background-color: var(--bg-default);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Base scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
+
+/* Prevent auto-zoom on focus on mobile devices by ensuring at least 16px font size */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Leaflet Customization */
+.leaflet-container {
+  font-family: inherit;
+  z-index: 10;
+}
+
+.custom-map-popup .leaflet-popup-content-wrapper {
+  background: var(--surface-default);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  padding: 0.25rem;
+}
+
+.custom-map-popup .leaflet-popup-tip {
+  background: var(--surface-default);
+  border: 1px solid var(--border-default);
+}
+
+.custom-map-popup .leaflet-popup-content {
+  margin: 0.5rem 0.6rem;
+  line-height: 1.4;
+}
+
+.dark .leaflet-tile-pane {
+  filter: brightness(0.88) invert(0.92) hue-rotate(180deg) saturate(0.85);
+}
+

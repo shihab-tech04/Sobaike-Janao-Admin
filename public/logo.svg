@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" fill="none">
+  <defs>
+    <linearGradient id="sobaike-logo-shield-grad" x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <filter id="logo-shadow" x="0" y="2" width="48" height="46" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.15" />
+    </filter>
+  </defs>
+  <!-- Shield Icon -->
+  <g transform="translate(4, 4)">
+    <path d="M24 4L8 10V22C8 32.5 14.8 42.3 24 45C33.2 42.3 40 32.5 40 22V10L24 4Z" fill="url(#sobaike-logo-shield-grad)" filter="url(#logo-shadow)" />
+    <path d="M24 8L12 12.8V22C12 30.2 17.1 37.8 24 40.2C30.9 37.8 36 30.2 36 22V12.8L24 8Z" fill="white" fill-opacity="0.12" />
+    <path d="M24 14L28 20H34L29 24L31 30L24 26L17 30L19 24L14 20H20L24 14Z" fill="#ffffff" />
+    <circle cx="24" cy="22" r="2.5" fill="#0284c7" />
+  </g>
+  <!-- Text Label -->
+  <text x="62" y="27" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="800" fill="#0f172a" letter-spacing="-0.025em">Sobai Ke Janao</text>
+  <text x="63" y="44" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#0284c7" letter-spacing="0.15em">ADMIN PANEL</text>
+</svg>

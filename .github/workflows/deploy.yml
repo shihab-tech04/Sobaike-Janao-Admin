@@ -1,0 +1,148 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build production bundle
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+      - name: Verify dist output
+        run: |
+          ls -la dist
+          cat dist/index.html
+          if grep -q "/src/main.tsx" dist/index.html; then
+            echo "ERROR: dist/index.html contains /src/main.tsx! Aborting deployment."
+            exit 1
+          fi
+          echo "VERIFICATION PASSED: dist/index.html correctly references bundled assets."
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Wait for legacy Pages publisher
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          legacy_found=0
+          legacy_status=""
+
+          for attempt in {1..36}; do
+            curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${GITHUB_SHA}&per_page=100" \
+              -o /tmp/pages-runs.json
+
+            read -r found status run_id < <(python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('/tmp/pages-runs.json').read_text())
+          matches = [
+              run for run in payload.get('workflow_runs', [])
+              if run.get('name') == 'pages build and deployment'
+          ]
+          if not matches:
+              print('0 none none')
+          else:
+              run = max(matches, key=lambda item: item.get('id', 0))
+              print('1', run.get('status') or 'unknown', run.get('id') or 'none')
+          PY
+            )
+
+            if [ "$found" = "1" ]; then
+              legacy_found=1
+              legacy_status="$status"
+              echo "Legacy Pages run $run_id status: $status"
+              if [ "$status" = "completed" ]; then
+                break
+              fi
+            elif [ "$attempt" -ge 6 ]; then
+              echo "No legacy Pages run detected for this commit; continuing with the custom publisher."
+              break
+            fi
+
+            sleep 5
+          done
+
+          if [ "$legacy_found" = "1" ] && [ "$legacy_status" != "completed" ]; then
+            echo "ERROR: legacy Pages publisher did not finish before timeout."
+            exit 1
+          fi
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify deployed Admin bundle
+        shell: bash
+        env:
+          SITE_URL: https://shihabshajib01-cell.github.io/sobaike-janao-admin/
+        run: |
+          set -euo pipefail
+          expected_asset=$(grep -o 'assets/index-[^" ]*\.js' dist/index.html | head -1)
+          test -n "$expected_asset"
+
+          for attempt in {1..18}; do
+            code=$(curl -L -sS -o /tmp/admin-index.html -w "%{http_code}" "$SITE_URL" || true)
+            if [ "$code" = "200" ] \
+              && ! grep -q '/src/main.tsx' /tmp/admin-index.html \
+              && grep -q "$expected_asset" /tmp/admin-index.html; then
+              echo "Production bundle verification passed."
+              exit 0
+            fi
+
+            echo "Attempt $attempt did not yet serve the expected bundle; retrying..."
+            sleep 5
+          done
+
+          echo "ERROR: GitHub Pages did not serve the expected production bundle."
+          cat /tmp/admin-index.html || true
+          exit 1

@@ -1,0 +1,77 @@
+name: Production Smoke
+
+on:
+  workflow_run:
+    workflows: ["Deploy to GitHub Pages"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE_URL: https://shihabshajib01-cell.github.io/sobaike-janao-admin/
+      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Verify live Admin site
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in {1..12}; do
+            code=$(curl -L -sS -o /tmp/admin-index.html -w "%{http_code}" "$SITE_URL" || true)
+            if [ "$code" = "200" ]; then
+              ok=1
+              break
+            fi
+            echo "Attempt $attempt returned HTTP $code; retrying..."
+            sleep 10
+          done
+          test "$ok" = "1"
+          python - <<'PY'
+          from pathlib import Path
+          html = Path('/tmp/admin-index.html').read_text(errors='replace')
+          if 'id="root"' not in html and "id='root'" not in html:
+              raise SystemExit('ERROR: production HTML is missing the React root element')
+          if '/src/main.tsx' in html:
+              raise SystemExit('ERROR: production page references source entry instead of bundled assets')
+          print('Admin site smoke check passed')
+          PY
+
+      - name: Verify private Admin RPC rejects anonymous access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_KEY"
+
+          http_code=$(curl -sS \
+            -o /tmp/admin-private-rpc.json \
+            -w "%{http_code}" \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/admin_get_response_detail" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"p_response_id":"__production_smoke_unauthorized__"}')
+
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "ERROR: admin_get_response_detail accepted anonymous access"
+            exit 1
+          fi
+
+          python - <<'PY'
+          from pathlib import Path
+          raw = Path('/tmp/admin-private-rpc.json').read_text(errors='replace')
+          forbidden = ('contact_info', 'contact_email_or_phone', 'responder_contact')
+          lowered = raw.lower()
+          if any(key in lowered for key in forbidden):
+              raise SystemExit('Private contact data appeared in anonymous RPC response')
+          print('Anonymous Admin RPC denial check passed')
+          PY

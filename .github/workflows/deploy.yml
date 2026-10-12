@@ -124,7 +124,7 @@ jobs:
       - name: Verify deployed Admin bundle
         shell: bash
         env:
-          SITE_URL: https://shihabshajib01-cell.github.io/sobaike-janao-admin/
+          SITE_URL: https://shihab-tech04.github.io/Sobaike-Janao-Admin/
         run: |
           set -euo pipefail
           expected_asset=$(grep -o 'assets/index-[^" ]*\.js' dist/index.html | head -1)

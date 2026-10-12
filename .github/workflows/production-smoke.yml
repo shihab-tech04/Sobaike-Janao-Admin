@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SITE_URL: https://shihabshajib01-cell.github.io/sobaike-janao-admin/
+      SITE_URL: https://shihab-tech04.github.io/Sobaike-Janao-Admin/
       SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 

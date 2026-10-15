@@ -6,8 +6,11 @@ export interface TranslationDictionary {
   nav: {
     dashboard: string;
     complaints: string;
+    newsIntake: string;
     responses: string;
     categories: string;
+    banners: string;
+    systemHealth: string;
     map: string;
     locationActivity: string;
     roles: string;
@@ -331,8 +334,11 @@ export const translations: Record<Language, TranslationDictionary> = {
     nav: {
       dashboard: 'Dashboard',
       complaints: 'Complaints',
+      newsIntake: 'News Intake',
       responses: 'Responses',
       categories: 'Categories',
+      banners: 'Banner CMS',
+      systemHealth: 'System Health',
       map: 'Map Monitoring',
       locationActivity: 'Location Activity',
       roles: 'Roles & Permissions',
@@ -655,8 +661,11 @@ export const translations: Record<Language, TranslationDictionary> = {
     nav: {
       dashboard: 'ড্যাশবোর্ড',
       complaints: 'অভিযোগসমূহ',
+      newsIntake: 'সংবাদ সংগ্রহ',
       responses: 'প্রতিক্রিয়া',
       categories: 'বিভাগসমূহ',
+      banners: 'ব্যানার ব্যবস্থাপনা',
+      systemHealth: 'সিস্টেম স্বাস্থ্য',
       map: 'ম্যাপ মনিটরিং',
       locationActivity: 'লোকেশন অ্যাক্টিভিটি',
       roles: 'ভূমিকা ও অনুমতি',

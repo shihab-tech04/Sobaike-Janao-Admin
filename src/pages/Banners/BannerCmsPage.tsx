@@ -37,9 +37,30 @@ const DESCRIPTION_LENGTHS = {
 
 const textValue = (value: unknown) => typeof value === 'string' ? value : '';
 const displayDate = (value: string | null, locale: string) => value ? new Date(value).toLocaleString(locale) : '—';
+type BannerError = 'load' | 'draft-validation' | 'save' | 'publish-validation' | 'publish' | null;
+const BANNER_CATEGORY_LABELS: Record<string, { en: string; bn: string }> = {
+  harassment: { en: 'Harassment & abuse', bn: 'হয়রানি ও নির্যাতন' },
+  load_shedding: { en: 'Utility issues', bn: 'ইউটিলিটি সমস্যা' },
+  extortion: { en: 'Extortion', bn: 'চাঁদাবাজি' },
+  public_safety: { en: 'Public Safety', bn: 'জননিরাপত্তা' },
+  road_transport: { en: 'Road & Transport Issues', bn: 'সড়ক ও যাতায়াত সমস্যা' },
+  illegal_occupation: { en: 'Illegal Occupation', bn: 'অবৈধ দখল' },
+  rickshaw: { en: 'Illegal auto-rickshaw charging', bn: 'অবৈধ অটো চার্জিং' },
+};
 const contentLabel = (row: NormalizedBannerRow, key: 'draft_content' | 'published_content', language: 'en' | 'bn') => {
   const field = language === 'bn' ? 'titleBn' : 'titleEn';
-  return textValue(row[key][field]) || row.category_key.replaceAll('_', ' ');
+  return textValue(row[key][field]) || BANNER_CATEGORY_LABELS[row.category_key]?.[language] || row.category_key;
+};
+const bannerErrorText = (error: Exclude<BannerError, null>, isBn: boolean) => {
+  if (error === 'draft-validation') return isBn
+    ? 'সব প্রয়োজনীয় লেখা, দৃশ্যমানতা এবং ১–৯৯ sort order পূরণ করুন।'
+    : 'Complete all required text, visibility, and a sort order from 1 to 99.';
+  if (error === 'publish-validation') return isBn
+    ? 'প্রকাশের আগে সব বিবরণ নির্ধারিত অক্ষরসংখ্যায় পূরণ করুন।'
+    : 'Before publishing, complete all required fields and exact description lengths.';
+  if (error === 'save') return isBn ? 'খসড়া সংরক্ষণ করা যায়নি। আপনার অনুমতি যাচাই করে আবার চেষ্টা করুন।' : 'Draft could not be saved. Check your access and try again.';
+  if (error === 'publish') return isBn ? 'ব্যানার প্রকাশ করা যায়নি। আপনার অনুমতি যাচাই করে আবার চেষ্টা করুন।' : 'Banner could not be published. Check your access and try again.';
+  return isBn ? 'ব্যানার লোড করা যায়নি। আবার চেষ্টা করুন।' : 'Banners could not be loaded. Try again.';
 };
 
 export const BannerCmsPage: React.FC = () => {
@@ -51,7 +72,7 @@ export const BannerCmsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<BannerError>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const loadRows = useCallback(async (showSpinner = true) => {
@@ -61,8 +82,8 @@ export const BannerCmsPage: React.FC = () => {
       const nextRows = await recoveryApi.getBannerRows();
       setRows(nextRows);
       setSelectedKey((current) => current || nextRows[0]?.category_key || '');
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Banner records could not be loaded.');
+    } catch {
+      setError('load');
     } finally {
       if (showSpinner) setLoading(false);
     }
@@ -94,9 +115,7 @@ export const BannerCmsPage: React.FC = () => {
   const saveDraft = async () => {
     if (!selectedRow) return;
     if (!draftValid) {
-      setError(isBn
-        ? 'সব প্রয়োজনীয় লেখা, দৃশ্যমানতা এবং ১–৯৯ sort order পূরণ করুন।'
-        : 'Complete all required text, visibility, and a sort order from 1 to 99.');
+      setError('draft-validation');
       return;
     }
     setSaving(true);
@@ -106,8 +125,8 @@ export const BannerCmsPage: React.FC = () => {
       await recoveryApi.saveBannerDraft(selectedRow.category_key, draft);
       await loadRows(false);
       setNotice(isBn ? 'খসড়া সংরক্ষিত হয়েছে।' : 'Draft saved.');
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Draft could not be saved.');
+    } catch {
+      setError('save');
     } finally {
       setSaving(false);
     }
@@ -116,9 +135,7 @@ export const BannerCmsPage: React.FC = () => {
   const publishDraft = async () => {
     if (!selectedRow) return;
     if (!draftValid || !descriptionLengthsValid) {
-      setError(isBn
-        ? 'প্রকাশের আগে সব বিবরণ নির্ধারিত অক্ষরসংখ্যায় পূরণ করুন।'
-        : 'Before publishing, complete all required fields and exact description lengths.');
+      setError('publish-validation');
       return;
     }
     const prompt = isBn
@@ -132,15 +149,19 @@ export const BannerCmsPage: React.FC = () => {
       await recoveryApi.publishBanner(selectedRow.category_key);
       await loadRows(false);
       setNotice(isBn ? 'ব্যানার প্রকাশিত হয়েছে।' : 'Banner published.');
-    } catch (publishError) {
-      setError(publishError instanceof Error ? publishError.message : 'Banner could not be published.');
+    } catch {
+      setError('publish');
     } finally {
       setPublishing(false);
     }
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div
+      className="space-y-6 pb-12"
+      lang={language}
+      style={isBn ? { fontFamily: '"Hind Siliguri", "Noto Sans Bengali", "Kalpurush", system-ui, sans-serif' } : undefined}
+    >
       <PageHeader
         title={isBn ? 'ব্যানার ব্যবস্থাপনা' : 'Banner CMS'}
         description={isBn
@@ -150,7 +171,7 @@ export const BannerCmsPage: React.FC = () => {
       />
 
       {loading && rows.length === 0 && <LoadingState message={isBn ? 'ব্যানার লোড হচ্ছে…' : 'Loading banners…'} />}
-      {error && <Card className="border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20"><CardContent className="flex items-start gap-3 py-4"><AlertTriangle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" /><p className="text-sm text-red-700 dark:text-red-300">{error}</p></CardContent></Card>}
+      {error && <Card className="border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20"><CardContent className="flex items-start gap-3 py-4"><AlertTriangle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" /><p className="text-sm text-red-700 dark:text-red-300">{bannerErrorText(error, isBn)}</p></CardContent></Card>}
       {notice && <Card className="border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20"><CardContent className="flex items-center gap-2 py-3"><CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /><p className="text-sm text-emerald-800 dark:text-emerald-300">{notice}</p></CardContent></Card>}
 
       {rows.length > 0 && (
@@ -229,7 +250,6 @@ export const BannerCmsPage: React.FC = () => {
                     {([
                       ['isActive', isBn ? 'ব্যানার সক্রিয়' : 'Active banner'],
                       ['showOnHome', isBn ? 'হোমে দেখান' : 'Show on home'],
-                      ['showHomeCta', isBn ? 'হোম CTA দেখান' : 'Show home CTA'],
                     ] as const).map(([key, label]) => (
                       <label key={key} className="flex min-h-10 items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
                         <input

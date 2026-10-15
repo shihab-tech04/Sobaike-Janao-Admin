@@ -11,6 +11,30 @@ import { NormalizedSystemHealthPayload, RecoveryRecord } from '@/services/recove
 
 const asRecord = (value: unknown): RecoveryRecord => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as RecoveryRecord : {};
 const text = (value: unknown, fallback = '—') => value === null || value === undefined || value === '' ? fallback : String(value);
+const localizeDigits = (value: unknown, isBn: boolean) => {
+  const raw = String(value ?? '');
+  if (!isBn) return raw;
+  const banglaDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  return raw.replace(/[0-9]/g, (digit) => banglaDigits[Number(digit)] || digit);
+};
+const localizedStatus = (value: unknown, isBn: boolean) => {
+  const status = String(value ?? '').toLowerCase();
+  if (status === 'healthy') return isBn ? 'স্বাভাবিক' : 'Healthy';
+  if (status === 'degraded') return isBn ? 'সীমিত' : 'Degraded';
+  if (status === 'critical') return isBn ? 'গুরুতর' : 'Critical';
+  return isBn ? 'অজানা' : 'Unknown';
+};
+const localizedTimestamp = (value: unknown, isBn: boolean) => {
+  const raw = text(value, '');
+  if (!raw) return '—';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return localizeDigits(raw, isBn);
+  return new Intl.DateTimeFormat(isBn ? 'bn-BD' : 'en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Dhaka',
+  }).format(date);
+};
 const statusFor = (value: unknown): BadgeStatus => {
   switch (String(value ?? '').toLowerCase()) {
     case 'healthy': return 'success';
@@ -26,13 +50,13 @@ const ProbeCard: React.FC<{ title: string; probe: RecoveryRecord; language: 'en'
     <CardHeader className="pb-3">
       <div className="flex items-start justify-between gap-3">
         <CardTitle>{title}</CardTitle>
-        <Badge status={statusFor(probe.status)} dot>{text(probe.status)}</Badge>
+        <Badge status={statusFor(probe.status)} dot>{localizedStatus(probe.status, language === 'bn')}</Badge>
       </div>
     </CardHeader>
     <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-      <div><p className="text-slate-500 dark:text-slate-400">HTTP</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{text(probe.httpStatus)}</p></div>
-      <div><p className="text-slate-500 dark:text-slate-400">{language === 'bn' ? 'সময়' : 'Latency'}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{probe.latencyMs === null || probe.latencyMs === undefined ? '—' : `${probe.latencyMs} ms`}</p></div>
-      <div className="col-span-2"><p className="text-slate-500 dark:text-slate-400">{language === 'bn' ? 'যাচাইয়ের সময়' : 'Checked'}</p><p className="mt-1 break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">{text(probe.checkedAt)}</p></div>
+      <div><p className="text-slate-500 dark:text-slate-400">HTTP</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{localizeDigits(text(probe.httpStatus), language === 'bn')}</p></div>
+      <div><p className="text-slate-500 dark:text-slate-400">{language === 'bn' ? 'সময়' : 'Latency'}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{probe.latencyMs === null || probe.latencyMs === undefined ? '—' : `${localizeDigits(probe.latencyMs, language === 'bn')} ${language === 'bn' ? 'মিলিসেকেন্ড' : 'ms'}`}</p></div>
+      <div className="col-span-2"><p className="text-slate-500 dark:text-slate-400">{language === 'bn' ? 'যাচাইয়ের সময়' : 'Checked'}</p><p className="mt-1 break-words text-[11px] text-slate-700 dark:text-slate-300">{localizedTimestamp(probe.checkedAt, language === 'bn')}</p></div>
     </CardContent>
   </Card>
 );
@@ -42,15 +66,15 @@ export const SystemHealthPage: React.FC = () => {
   const isBn = language === 'bn';
   const [health, setHealth] = useState<NormalizedSystemHealthPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setError(false);
     try {
       setHealth(await recoveryApi.getSystemHealth());
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'System health could not be loaded.');
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -72,7 +96,11 @@ export const SystemHealthPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 pb-12">
+    <div
+      className="space-y-6 pb-12"
+      lang={language}
+      style={isBn ? { fontFamily: '"Hind Siliguri", "Noto Sans Bengali", "Kalpurush", system-ui, sans-serif' } : undefined}
+    >
       <PageHeader
         title={isBn ? 'সিস্টেম স্বাস্থ্য' : 'System Health'}
         description={isBn
@@ -82,7 +110,7 @@ export const SystemHealthPage: React.FC = () => {
       />
 
       {loading && !health && <LoadingState message={isBn ? 'সিস্টেম পরীক্ষা চলছে…' : 'Checking system health…'} />}
-      {error && <Card className="border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20"><CardContent className="flex items-start gap-3 py-4"><AlertTriangle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" /><div><p className="text-sm font-semibold text-red-800 dark:text-red-300">{isBn ? 'স্বাস্থ্য তথ্য লোড করা যায়নি' : 'Health checks could not be loaded'}</p><p className="mt-1 text-xs text-red-700 dark:text-red-400">{error}</p></div></CardContent></Card>}
+      {error && <Card className="border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20"><CardContent className="flex items-start gap-3 py-4"><AlertTriangle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" /><p className="text-sm text-red-800 dark:text-red-300">{isBn ? 'স্বাস্থ্য পরীক্ষা লোড করা যায়নি। আপনার অনুমতি যাচাই করে আবার চেষ্টা করুন।' : 'Health checks could not be loaded. Check your access and try again.'}</p></CardContent></Card>}
 
       {health && (
         <>
@@ -92,12 +120,12 @@ export const SystemHealthPage: React.FC = () => {
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300"><Activity className="h-5 w-5" /></div>
                 <div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{isBn ? 'সামগ্রিক অবস্থা' : 'Overall status'}</p>
-                  <div className="mt-1"><Badge status={statusFor(live.overallStatus)} size="md" dot>{text(live.overallStatus)}</Badge></div>
+                <div className="mt-1"><Badge status={statusFor(live.overallStatus)} size="md" dot>{localizedStatus(live.overallStatus, isBn)}</Badge></div>
                 </div>
               </div>
               <div className="text-right text-[11px] text-slate-500 dark:text-slate-400">
-                <p>{isBn ? 'সংগ্রহ করা হয়েছে' : 'Collected'}: {text(live.collectedAt)}</p>
-                <p className="mt-1">{isBn ? 'Collector সংস্করণ' : 'Collector version'}: {text(live.collectorVersion)}</p>
+                <p>{isBn ? 'সংগ্রহ করা হয়েছে' : 'Collected'}: {localizedTimestamp(live.collectedAt, isBn)}</p>
+                <p className="mt-1">{isBn ? 'Collector সংস্করণ' : 'Collector version'}: {localizeDigits(text(live.collectorVersion), isBn)}</p>
               </div>
             </CardContent>
           </Card>
@@ -109,7 +137,7 @@ export const SystemHealthPage: React.FC = () => {
           <Card>
             <CardHeader><CardTitle>{isBn ? 'ডাটাবেস অবস্থা' : 'Database status'}</CardTitle></CardHeader>
             <CardContent className="flex flex-wrap items-center gap-3">
-              <Badge status={statusFor(database.status || infrastructure.databaseStatus)} dot>{text(database.status || infrastructure.databaseStatus, 'unknown')}</Badge>
+              <Badge status={statusFor(database.status || infrastructure.databaseStatus)} dot>{localizedStatus(database.status || infrastructure.databaseStatus, isBn)}</Badge>
               <span className="text-xs text-slate-500 dark:text-slate-400">{isBn ? 'পরবর্তী বিস্তারিত ডাটাবেস RPC-এর অনুমতিপ্রাপ্ত আউটপুট থেকে দেখানো হয়।' : 'Database details are limited to the authorized health RPC response.'}</span>
             </CardContent>
           </Card>

@@ -9,6 +9,7 @@ import {
   NormalizedNewsTaxonomy,
   NormalizedSystemHealthPayload,
 } from '@/services/recoveryContracts.mjs';
+import { normalizeNewsSourcePreview } from '@/services/newsIntakeWorkflow.mjs';
 
 const ensureConfigured = () => {
   if (!isSupabaseConfigured) {
@@ -16,9 +17,9 @@ const ensureConfigured = () => {
   }
 };
 
-const readRpc = async (name: string): Promise<unknown> => {
+const readRpc = async (name: string, args: Record<string, unknown> = {}): Promise<unknown> => {
   ensureConfigured();
-  const { data, error } = await supabase.rpc(name);
+  const { data, error } = await supabase.rpc(name, args);
   if (error) throw new Error(error.message || `Unable to read ${name}.`);
   return data;
 };
@@ -42,6 +43,54 @@ export const recoveryApi = {
         : [],
       taxonomy: normalizeNewsIntakeTaxonomy(taxonomyRaw),
     };
+  },
+
+  async scanNewsIntake(): Promise<Record<string, unknown>> {
+    ensureConfigured();
+    const { data, error } = await supabase.functions.invoke('news-intake-scan', { body: {} });
+    if (error) throw new Error(error.message || 'News sources could not be scanned.');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('News Intake scan returned an invalid response.');
+    }
+    return data as Record<string, unknown>;
+  },
+
+  async getNewsSourcePreview(url: string) {
+    ensureConfigured();
+    const { data, error } = await supabase.functions.invoke('news-intake-fetch', {
+      body: { url },
+    });
+    if (error) throw new Error(error.message || 'The approved source preview could not be loaded.');
+    const preview = normalizeNewsSourcePreview(data);
+    if (!preview) throw new Error('The source preview did not pass the approved HTTPS source checks.');
+    return preview;
+  },
+
+  async previewSourcedReport(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const result = await readRpc('admin_preview_sourced_report_intake', { p_payload: payload });
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('The sourced report preview returned an invalid response.');
+    }
+    return result as Record<string, unknown>;
+  },
+
+  async createSourcedReport(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const result = await readRpc('admin_create_sourced_report_from_intake', { p_payload: payload });
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('The sourced report could not be created.');
+    }
+    return result as Record<string, unknown>;
+  },
+
+  async completeNewsItemReview(itemId: string, reportId: string): Promise<Record<string, unknown>> {
+    const result = await readRpc('admin_complete_news_intake_item_review', {
+      p_item_id: itemId,
+      p_report_id: reportId,
+    });
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('News Intake review returned an invalid response.');
+    }
+    return result as Record<string, unknown>;
   },
 
   async getBannerRows(): Promise<NormalizedBannerRow[]> {

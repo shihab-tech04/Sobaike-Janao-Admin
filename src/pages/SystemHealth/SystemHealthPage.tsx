@@ -8,6 +8,7 @@ import { LoadingState } from '@/components/common/LoadingState';
 import { useLanguage } from '@/context/LanguageContext';
 import { recoveryApi } from '@/services/api/recoveryApi';
 import { NormalizedSystemHealthPayload, RecoveryRecord } from '@/services/recoveryContracts.mjs';
+import { baseTokens } from '@/themes/tokens';
 
 const asRecord = (value: unknown): RecoveryRecord => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as RecoveryRecord : {};
 const text = (value: unknown, fallback = '—') => value === null || value === undefined || value === '' ? fallback : String(value);
@@ -99,7 +100,7 @@ export const SystemHealthPage: React.FC = () => {
     <div
       className="space-y-6 pb-12"
       lang={language}
-      style={isBn ? { fontFamily: '"Hind Siliguri", "Noto Sans Bengali", "Kalpurush", system-ui, sans-serif' } : undefined}
+      style={isBn ? { fontFamily: baseTokens.typography.fontFamily.bengali } : undefined}
     >
       <PageHeader
         title={isBn ? 'সিস্টেম স্বাস্থ্য' : 'System Health'}

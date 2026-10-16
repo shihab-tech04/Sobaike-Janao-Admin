@@ -24,6 +24,17 @@ const readRpc = async (name: string, args: Record<string, unknown> = {}): Promis
   return data;
 };
 
+type RecoveryWriteOutcome = 'rejected' | 'unknown';
+type RecoveryWriteError = Error & { outcome: RecoveryWriteOutcome };
+
+const writeError = (message: string, sqlState?: string): RecoveryWriteError => {
+  const error = new Error(message) as RecoveryWriteError;
+  error.outcome = typeof sqlState === 'string' && /^[0-9A-Z]{5}$/.test(sqlState)
+    ? 'rejected'
+    : 'unknown';
+  return error;
+};
+
 export const recoveryApi = {
   async getNewsIntake(): Promise<{
     dashboard: NormalizedNewsDashboard;
@@ -75,22 +86,48 @@ export const recoveryApi = {
   },
 
   async createSourcedReport(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const result = await readRpc('admin_create_sourced_report_from_intake', { p_payload: payload });
-    if (!result || typeof result !== 'object' || Array.isArray(result)) {
-      throw new Error('The sourced report could not be created.');
+    ensureConfigured();
+    const { data, error } = await supabase.rpc('admin_create_sourced_report_from_intake', { p_payload: payload });
+    if (error) {
+      throw writeError(error.message || 'The sourced report could not be created.', error.code);
     }
-    return result as Record<string, unknown>;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw writeError('The sourced report creation result could not be confirmed.');
+    }
+    return data as Record<string, unknown>;
   },
 
   async completeNewsItemReview(itemId: string, reportId: string): Promise<Record<string, unknown>> {
-    const result = await readRpc('admin_complete_news_intake_item_review', {
+    ensureConfigured();
+    const { data, error } = await supabase.rpc('admin_complete_news_intake_item_review', {
       p_item_id: itemId,
       p_report_id: reportId,
     });
-    if (!result || typeof result !== 'object' || Array.isArray(result)) {
-      throw new Error('News Intake review returned an invalid response.');
+    if (error) {
+      throw writeError(error.message || 'News Intake review could not be confirmed.', error.code);
     }
-    return result as Record<string, unknown>;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw writeError('News Intake review returned an invalid response.');
+    }
+    return data as Record<string, unknown>;
+  },
+
+  async publishSourcedReport(reportId: string): Promise<Record<string, unknown>> {
+    ensureConfigured();
+    const { data, error } = await supabase.rpc('admin_publish_complaint', {
+      p_complaint_id: reportId,
+    });
+    if (error) {
+      throw writeError(error.message || 'The report could not be published.', error.code);
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw writeError('The report publication result could not be confirmed.');
+    }
+    const result = data as Record<string, unknown>;
+    if (result.success !== true || result.status !== 'published') {
+      throw writeError('The report publication result could not be confirmed.');
+    }
+    return result;
   },
 
   async getBannerRows(): Promise<NormalizedBannerRow[]> {

@@ -154,7 +154,7 @@ test('review transport failure leaves the sourced report unpublished', async () 
   assert.equal(events.includes('publish'), false);
 });
 
-test('publication transport failure is blocked and never counted as a successful publish', async () => {
+test('publication transport failure is not counted as success and is marked uncertain', async () => {
   const events = [];
   const result = await publishSelectedNewsCandidates([candidate()], {
     previewSourcedReport: async () => readyPreview,
@@ -167,6 +167,26 @@ test('publication transport failure is blocked and never counted as a successful
   assert.deepEqual(result.published, []);
   assert.equal(result.blocked.length, 1);
   assert.equal(result.blocked[0].itemId, 'item-1');
+  assert.equal(result.blocked[0].stage, 'publish');
+  assert.equal(result.blocked[0].outcomeUnknown, true);
+});
+
+test('a database publication rejection is fail-closed and known to remain unpublished', async () => {
+  const events = [];
+  const result = await publishSelectedNewsCandidates([candidate()], {
+    previewSourcedReport: async () => readyPreview,
+    createSourcedReport: async () => { events.push('create'); return { reportId: 'synthetic-draft-1' }; },
+    completeItemReview: async () => { events.push('review'); return { ready: true }; },
+    publishComplaint: async () => {
+      events.push('publish');
+      throw Object.assign(new Error('synthetic server rejection'), { outcome: 'rejected' });
+    },
+  });
+
+  assert.deepEqual(events, ['create', 'review', 'publish']);
+  assert.equal(result.published.length, 0);
+  assert.equal(result.blocked[0].stage, 'publish');
+  assert.equal(result.blocked[0].outcomeUnknown, false);
 });
 
 test('repeated item identifiers cannot create or publish the same selected candidate twice', async () => {
@@ -184,6 +204,41 @@ test('repeated item identifiers cannot create or publish the same selected candi
   assert.deepEqual(result.blocked, []);
 });
 
+test('a retried request is stopped by the source duplicate preflight contract', async () => {
+  const sourceUrl = 'https://news.example/articles/retry';
+  const events = [];
+  let reportCreated = false;
+  const actions = {
+    previewSourcedReport: async () => {
+      events.push('preview');
+      return reportCreated ? { ...readyPreview, duplicate: { status: 'exact' } } : readyPreview;
+    },
+    createSourcedReport: async () => {
+      events.push('create');
+      reportCreated = true;
+      return { reportId: 'synthetic-retry-report' };
+    },
+    completeItemReview: async () => { events.push('review'); return { ready: true }; },
+    publishComplaint: async () => {
+      events.push('publish');
+      throw new Error('synthetic response lost after request');
+    },
+  };
+  const item = candidate('retry-item', {
+    canonicalUrl: sourceUrl,
+    reviewPayload: { source: { canonicalUrl: sourceUrl }, report: { titleBn: 'সিনথেটিক সংবাদ' } },
+  });
+
+  const first = await publishSelectedNewsCandidates([item], actions);
+  const second = await publishSelectedNewsCandidates([item], actions);
+
+  assert.equal(first.blocked[0].outcomeUnknown, true);
+  assert.equal(second.writesStarted, false);
+  assert.equal(second.blocked.length, 1);
+  assert.equal(events.filter((event) => event === 'create').length, 1);
+  assert.equal(events.filter((event) => event === 'publish').length, 1);
+});
+
 test('Admin UI uses the manual scan, protected report contracts, bilingual copy, and responsive grid', async () => {
   const [api, page, routes] = await Promise.all([
     readFile(new URL('../src/services/api/recoveryApi.ts', import.meta.url), 'utf8'),
@@ -195,6 +250,9 @@ test('Admin UI uses the manual scan, protected report contracts, bilingual copy,
   assert.match(api, /admin_preview_sourced_report_intake/);
   assert.match(api, /admin_create_sourced_report_from_intake/);
   assert.match(api, /admin_complete_news_intake_item_review/);
+  assert.match(api, /async publishSourcedReport[\s\S]*supabase\.rpc\('admin_publish_complaint'/);
+  assert.match(page, /recoveryApi\.publishSourcedReport/);
+  assert.doesNotMatch(page, /complaintApi\.publishComplaint/);
   assert.doesNotMatch(api + page, /process_trusted_news_intake_candidate/);
   assert.match(page, /Check sources and duplicates/);
   assert.match(page, /উৎস ও ডুপ্লিকেট পরীক্ষা/);
@@ -202,16 +260,24 @@ test('Admin UI uses the manual scan, protected report contracts, bilingual copy,
   assert.match(page, /মূল উৎস/);
   assert.match(page, /Feed-ready preview/);
   assert.match(page, /ফিডে প্রকাশের পূর্বরূপ/);
+  assert.match(page, /Report linked/);
+  assert.match(page, /প্রতিবেদন যুক্ত/);
+  assert.match(page, /text\(activeItem\.reportId\)/);
   assert.match(page, /grid-cols-1 gap-4 xl:grid-cols-2/);
   assert.match(page, /state === 'partial'/);
   assert.match(page, /Held reports remain unpublished/);
+  assert.match(page, /state === 'unknown'/);
+  assert.match(page, /could not be confirmed/);
+  assert.match(page, /ফল নিশ্চিত করা যায়নি/);
   assert.match(routes, /requiredPermission="complaints\.publish"[\s\S]*<NewsIntakePage/);
 });
 
 test('recovered Admin pages localize status and error copy for Bengali mode', async () => {
-  const [bannerPage, healthPage] = await Promise.all([
+  const [bannerPage, healthPage, newsPage, themeTokens] = await Promise.all([
     readFile(new URL('../src/pages/Banners/BannerCmsPage.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/pages/SystemHealth/SystemHealthPage.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/pages/NewsIntake/NewsIntakePage.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/themes/tokens.ts', import.meta.url), 'utf8'),
   ]);
   assert.match(bannerPage, /bannerErrorText\(error, isBn\)/);
   assert.match(bannerPage, /হয়রানি ও নির্যাতন/);
@@ -219,4 +285,9 @@ test('recovered Admin pages localize status and error copy for Bengali mode', as
   assert.match(healthPage, /স্বাভাবিক/);
   assert.match(healthPage, /অজানা/);
   assert.match(healthPage, /localizedTimestamp\(live\.collectedAt, isBn\)/);
+  for (const page of [bannerPage, healthPage, newsPage]) {
+    assert.match(page, /fontFamily: baseTokens\.typography\.fontFamily\.bengali/);
+    assert.doesNotMatch(page, /fontFamily: '"Hind Siliguri"/);
+  }
+  assert.match(themeTokens, /bengali: '"Hind Siliguri"/);
 });

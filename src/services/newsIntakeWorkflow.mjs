@@ -56,6 +56,7 @@ export function isPublishableSourcedReportPreview(value) {
 }
 
 const errorText = (error) => error instanceof Error ? error.message : 'The selected source could not be published.';
+const writeOutcomeUnknown = (error) => error?.outcome !== 'rejected';
 
 /**
  * Runs the protected review/publication contracts in order. Every selected item
@@ -99,25 +100,55 @@ export async function publishSelectedNewsCandidates(items, actions) {
   const published = [];
   const blocked = [];
   for (const { item } of checks) {
+    let reportId = '';
     try {
       const created = await actions.createSourcedReport(item.reviewPayload);
-      const reportId = asText(created?.reportId ?? created?.report_id);
+      reportId = asText(created?.reportId ?? created?.report_id);
       if (!reportId) throw new Error('The source contract returned no report ID.');
+    } catch (error) {
+      blocked.push({
+        itemId: asText(item.id),
+        stage: 'create',
+        outcomeUnknown: writeOutcomeUnknown(error),
+        reason: errorText(error),
+      });
+      continue;
+    }
 
+    try {
       const review = await actions.completeItemReview(asText(item.id), reportId);
       if (review?.ready !== true) {
         blocked.push({
           itemId: asText(item.id),
           reportId,
+          stage: 'review',
+          outcomeUnknown: false,
           reason: 'The server review is no longer ready. The report remains unpublished.',
         });
         continue;
       }
+    } catch (error) {
+      blocked.push({
+        itemId: asText(item.id),
+        reportId,
+        stage: 'review',
+        outcomeUnknown: writeOutcomeUnknown(error),
+        reason: errorText(error),
+      });
+      continue;
+    }
 
+    try {
       await actions.publishComplaint(reportId);
       published.push({ itemId: asText(item.id), reportId });
     } catch (error) {
-      blocked.push({ itemId: asText(item.id), reason: errorText(error) });
+      blocked.push({
+        itemId: asText(item.id),
+        reportId,
+        stage: 'publish',
+        outcomeUnknown: writeOutcomeUnknown(error),
+        reason: errorText(error),
+      });
     }
   }
 

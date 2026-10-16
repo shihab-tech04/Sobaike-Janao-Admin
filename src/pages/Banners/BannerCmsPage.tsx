@@ -10,6 +10,7 @@ import { LoadingState } from '@/components/common/LoadingState';
 import { useLanguage } from '@/context/LanguageContext';
 import { recoveryApi } from '@/services/api/recoveryApi';
 import { NormalizedBannerRow, RecoveryRecord } from '@/services/recoveryContracts.mjs';
+import { baseTokens } from '@/themes/tokens';
 
 const TEXT_FIELDS = [
   { key: 'titleBn', en: 'Title (Bangla)', bn: 'শিরোনাম (বাংলা)', multiline: false },
@@ -160,7 +161,7 @@ export const BannerCmsPage: React.FC = () => {
     <div
       className="space-y-6 pb-12"
       lang={language}
-      style={isBn ? { fontFamily: '"Hind Siliguri", "Noto Sans Bengali", "Kalpurush", system-ui, sans-serif' } : undefined}
+      style={isBn ? { fontFamily: baseTokens.typography.fontFamily.bengali } : undefined}
     >
       <PageHeader
         title={isBn ? 'ব্যানার ব্যবস্থাপনা' : 'Banner CMS'}

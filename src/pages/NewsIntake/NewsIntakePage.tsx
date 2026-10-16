@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/common/LoadingState';
 import { useLanguage } from '@/context/LanguageContext';
-import { complaintApi } from '@/services/api/complaintApi';
 import { recoveryApi } from '@/services/api/recoveryApi';
 import { NormalizedNewsDashboard, NormalizedNewsTaxonomy, RecoveryRecord } from '@/services/recoveryContracts.mjs';
+import { baseTokens } from '@/themes/tokens';
 import {
   getManualNewsCandidates,
   isPublishableSourcedReportPreview,
@@ -48,6 +48,9 @@ const localizeDigits = (value: unknown, isBn: boolean): string => {
 };
 
 const itemStatus = (item: RecoveryRecord, isBn: boolean): { label: string; tone: BadgeStatus } => {
+  if (text(item.reportId)) {
+    return { label: isBn ? 'প্রতিবেদন যুক্ত' : 'Report linked', tone: 'review' };
+  }
   if (item.action === 'created_draft' && item.duplicateStatus === 'clear' && !item.reportId) {
     return { label: isBn ? 'প্রকাশের জন্য প্রস্তুত' : 'Feed ready', tone: 'success' };
   }
@@ -109,8 +112,8 @@ export const NewsIntakePage: React.FC = () => {
   const [loadFailed, setLoadFailed] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
-  const [actionState, setActionState] = useState<'scan' | 'published' | 'partial' | 'blocked' | null>(null);
-  const [actionCounts, setActionCounts] = useState<{ published: number; blocked: number } | null>(null);
+  const [actionState, setActionState] = useState<'scan' | 'published' | 'partial' | 'blocked' | 'unknown' | null>(null);
+  const [actionCounts, setActionCounts] = useState<{ published: number; blocked: number; uncertain: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [activeItemId, setActiveItemId] = useState('');
   const [activePreview, setActivePreview] = useState<ActivePreview | null>(null);
@@ -253,16 +256,24 @@ export const NewsIntakePage: React.FC = () => {
         previewSourcedReport: (payload) => recoveryApi.previewSourcedReport(payload as Record<string, unknown>),
         createSourcedReport: (payload) => recoveryApi.createSourcedReport(payload as Record<string, unknown>),
         completeItemReview: (itemId, reportId) => recoveryApi.completeNewsItemReview(itemId, reportId),
-        publishComplaint: async (reportId) => { await complaintApi.publishComplaint(reportId); },
+        publishComplaint: async (reportId) => { await recoveryApi.publishSourcedReport(reportId); },
       });
 
-      if (result.published.length > 0) {
-        setActionCounts({ published: result.published.length, blocked: result.blocked.length });
-        setActionState(result.blocked.length > 0 ? 'partial' : 'published');
+      const uncertain = result.blocked.filter((item) => item.outcomeUnknown === true).length;
+      const blocked = result.blocked.length - uncertain;
+      if (result.writesStarted) {
         setSelectedIds(new Set());
         await load();
+      }
+
+      if (uncertain > 0) {
+        setActionCounts({ published: result.published.length, blocked, uncertain });
+        setActionState('unknown');
+      } else if (result.published.length > 0) {
+        setActionCounts({ published: result.published.length, blocked, uncertain: 0 });
+        setActionState(blocked > 0 ? 'partial' : 'published');
       } else if (result.blocked.length > 0) {
-        setActionCounts({ published: 0, blocked: result.blocked.length });
+        setActionCounts({ published: 0, blocked: result.blocked.length, uncertain: 0 });
         setActionState('blocked');
       } else {
         setActionState('blocked');
@@ -292,6 +303,9 @@ export const NewsIntakePage: React.FC = () => {
     if (state === 'partial') return isBn
       ? `${localizeDigits(actionCounts?.published ?? 0, true)}টি প্রকাশিত হয়েছে; ${localizeDigits(actionCounts?.blocked ?? 0, true)}টি আটকে আছে। আটকে থাকা প্রতিবেদন প্রকাশিত হয়নি।`
       : `${actionCounts?.published ?? 0} published; ${actionCounts?.blocked ?? 0} held. Held reports remain unpublished.`;
+    if (state === 'unknown') return isBn
+      ? `${localizeDigits(actionCounts?.uncertain ?? 0, true)}টি নির্বাচিত আইটেমের ফল নিশ্চিত করা যায়নি। আবার চেষ্টা করার আগে সংবাদ সংগ্রহ ও প্রতিবেদন তালিকা রিফ্রেশ করুন; একই কাজ পুনরাবৃত্তি করবেন না।`
+      : `${actionCounts?.uncertain ?? 0} selected item action(s) could not be confirmed. Refresh News Intake and the reports list before retrying; do not repeat the action until its status is visible.`;
     if (state === 'blocked') return actionCounts
       ? isBn
         ? `কোনো প্রতিবেদন প্রকাশিত হয়নি। ${localizeDigits(actionCounts.blocked, true)}টি নির্বাচিত আইটেম পর্যালোচনা বা প্রকাশের শর্ত পূরণ করেনি।`
@@ -306,7 +320,7 @@ export const NewsIntakePage: React.FC = () => {
     <div
       className="space-y-5 pb-12"
       lang={language}
-      style={isBn ? { fontFamily: '"Hind Siliguri", "Noto Sans Bengali", "Kalpurush", system-ui, sans-serif' } : undefined}
+      style={isBn ? { fontFamily: baseTokens.typography.fontFamily.bengali } : undefined}
     >
       <PageHeader
         title={isBn ? 'সংবাদ সংগ্রহ' : 'News Intake'}
@@ -340,7 +354,7 @@ export const NewsIntakePage: React.FC = () => {
       )}
 
       {actionState && (
-        <div role="status" aria-live="polite" className={`rounded-md border px-3.5 py-2.5 text-sm ${actionState === 'blocked' ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200'}`}>
+        <div role="status" aria-live="polite" className={`rounded-md border px-3.5 py-2.5 text-sm ${actionState === 'blocked' || actionState === 'unknown' ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200'}`}>
           {statusText(actionState)}
         </div>
       )}
@@ -524,6 +538,14 @@ export const NewsIntakePage: React.FC = () => {
                 <p role="status" className="rounded-md border border-amber-200 bg-amber-50/60 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
                   {isBn ? 'প্রকাশের শর্ত যাচাই করা যায়নি; এই আইটেম প্রকাশ করা যাবে না।' : 'Publication checks could not be verified; this item cannot be published.'}
                 </p>
+              ) : text(activeItem.reportId) ? (
+                <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50/70 px-3 py-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+                  <p>{isBn ? 'এই উৎসের সঙ্গে একটি প্রতিবেদন যুক্ত হয়েছে। প্রকাশের অবস্থা যাচাই করতে প্রতিবেদন তালিকা রিফ্রেশ করুন।' : 'A report is linked to this source. Refresh the reports list to verify its publication status.'}</p>
+                  <p className="break-all text-xs font-medium text-slate-600 dark:text-slate-400">
+                    <span>{isBn ? 'প্রতিবেদন আইডি' : 'Report ID'}: </span>
+                    <span className="font-mono">{text(activeItem.reportId)}</span>
+                  </p>
+                </div>
               ) : report ? (
                 <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
                   <p>{itemReason(activeItem, isBn)}</p>

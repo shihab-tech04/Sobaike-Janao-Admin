@@ -14,7 +14,13 @@ export interface NewsSourcePreview {
 
 export interface NewsIntakePublicationResult {
   published: Array<{ itemId: string; reportId: string }>;
-  blocked: Array<{ itemId: string; reportId?: string; reason: string }>;
+  blocked: Array<{
+    itemId: string;
+    reportId?: string;
+    stage?: 'create' | 'review' | 'publish';
+    outcomeUnknown?: boolean;
+    reason: string;
+  }>;
   writesStarted: boolean;
 }
 

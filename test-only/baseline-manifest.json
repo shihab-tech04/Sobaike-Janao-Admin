@@ -22,8 +22,8 @@
     "policies": 46,
     "tableGrantRows": 414,
     "triggers": 36,
-    "functionDefinitions": 117,
-    "functionGrantRows": 220,
+    "functionDefinitions": 118,
+    "functionGrantRows": 222,
     "sequences": 4,
     "schemaGrantRows": 17,
     "sequenceGrantRows": 6,
@@ -32,7 +32,7 @@
   },
   "fixture": {
     "file": "test-only/current_contract_baseline.sql",
-    "sha256": "e9db6af3f28b325f9709869c1315d489ab5edbd2ee0c56dd1647da8735471736",
+    "sha256": "f89209231a0a9281271308f2975cd483f0a06faf8bb329c32f24e5fe43665436",
     "includesApplicationRows": false,
     "includesReporterRecords": false,
     "includesProductionSecrets": false,
@@ -41,7 +41,7 @@
     "containsObservedStorageBucketConfiguration": true,
     "localSuperuserSelfGrantRowsSkipped": {
       "publicAndPrivateTables": 280,
-      "functions": 117,
+      "functions": 118,
       "storageTables": 14,
       "schemas": 1,
       "sequences": 0
@@ -51,7 +51,7 @@
       "foreign key",
       "check"
     ],
-    "functionCreationOrder": "dependency-aware from captured SQL call references"
+    "functionCreationOrder": "dependency-aware from captured SQL call references; check-constraint helper dependencies validated from pg_depend"
   },
   "notRecovered": {
     "orderedHistoricalMigrationFilesMissing": 183,

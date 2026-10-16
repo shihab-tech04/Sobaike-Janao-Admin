@@ -7432,6 +7432,33 @@ BEGIN
   );
 END;
 $function$;
+CREATE OR REPLACE FUNCTION public.reporting_field_options_are_bilingual(p_options jsonb)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select
+    p_options is not null
+    and jsonb_typeof(p_options) = 'array'
+    and not exists (
+      select 1
+      from jsonb_array_elements(p_options) as item(value)
+      where jsonb_typeof(item.value) <> 'object'
+         or nullif(btrim(item.value->>'value'), '') is null
+         or nullif(btrim(item.value->>'labelEn'), '') is null
+         or nullif(btrim(item.value->>'labelBn'), '') is null
+    )
+    and not exists (
+      select 1
+      from (
+        select btrim(item.value->>'value') as option_value, count(*) as c
+        from jsonb_array_elements(p_options) as item(value)
+        group by btrim(item.value->>'value')
+        having count(*) > 1
+      ) duplicates
+    );
+$function$;
 CREATE OR REPLACE FUNCTION public.sanitize_configured_complaint_answers()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11916,6 +11943,7 @@ GRANT EXECUTE ON FUNCTION "public"."process_trusted_news_intake_candidate"(jsonb
 GRANT EXECUTE ON FUNCTION "public"."record_public_visit_session"(text, text, text, numeric, numeric, numeric, text, text, text, text, text, text, text, integer, integer, text, text) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."record_public_visit_session_internal"(text, text, text, numeric, numeric, numeric, text, text, text, text, text, text, text, integer, integer, text) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."register_public_complaint_evidence"(text, text, text, bigint, text) TO "service_role";
+GRANT EXECUTE ON FUNCTION "public"."reporting_field_options_are_bilingual"(jsonb) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION "public"."service_assert_public_write_rate"(text, text) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."service_begin_scheduled_news_intake_run"(timestamp with time zone) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."service_get_database_health"() TO "service_role";

@@ -32,13 +32,25 @@
   },
   "fixture": {
     "file": "test-only/current_contract_baseline.sql",
-    "sha256": "0a79830810436c52754834e95c19724404c7a8e475543ec93b68b7a7d40112d4",
+    "sha256": "5fa8ca29b5d2dc2c832d7ca21683c77afc46d908d11a1426e0c351e64a3fbe72",
     "includesApplicationRows": false,
     "includesReporterRecords": false,
     "includesProductionSecrets": false,
     "includesStorageObjects": false,
     "copiesSequenceCounters": false,
-    "containsObservedStorageBucketConfiguration": true
+    "containsObservedStorageBucketConfiguration": true,
+    "localSuperuserSelfGrantRowsSkipped": {
+      "publicAndPrivateTables": 280,
+      "functions": 117,
+      "storageTables": 14,
+      "schemas": 1,
+      "sequences": 0
+    },
+    "constraintApplicationOrder": [
+      "primary and unique",
+      "foreign key",
+      "check"
+    ]
   },
   "notRecovered": {
     "orderedHistoricalMigrationFilesMissing": 183,

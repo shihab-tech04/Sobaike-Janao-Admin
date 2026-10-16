@@ -13,7 +13,9 @@
     "databaseMajorVersion": 17,
     "databaseFullVersion": "17.6",
     "constraintFunctionDependencyRows": 1,
-    "policyFunctionDependencyRows": 10
+    "policyFunctionDependencyRows": 10,
+    "storageOwnershipRows": 2,
+    "storageTableOwner": "supabase_storage_admin"
   },
   "reconstructedObjects": {
     "relations": 40,
@@ -34,7 +36,7 @@
   },
   "fixture": {
     "file": "test-only/current_contract_baseline.sql",
-    "sha256": "031388bba52a93deefde62726b948c105731c5aeda7c36fb07b3e479d498576e",
+    "sha256": "bcdb681562ef50025303fb6e63b06a65388927dd36fdffcd9f483953a17d7126",
     "includesApplicationRows": false,
     "includesReporterRecords": false,
     "includesProductionSecrets": false,
@@ -53,7 +55,8 @@
       "foreign key",
       "check"
     ],
-    "functionCreationOrder": "dependency-aware from captured SQL call references; CHECK and RLS helper dependencies verified via pg_depend"
+    "functionCreationOrder": "dependency-aware from captured SQL call references; CHECK and RLS helper dependencies verified via pg_depend",
+    "storageDDLRole": "supabase_storage_admin, the verified Storage table owner; no ownership is changed"
   },
   "notRecovered": {
     "orderedHistoricalMigrationFilesMissing": 183,

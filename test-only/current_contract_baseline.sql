@@ -12103,6 +12103,7 @@ CREATE TRIGGER subject_responses_set_updated_at BEFORE UPDATE ON "public"."subje
 CREATE TRIGGER trg_system_health_transition AFTER INSERT ON "public"."system_health_snapshots" FOR EACH ROW EXECUTE FUNCTION private.handle_system_health_transition();
 CREATE TRIGGER trg_protect_super_admin_user_roles BEFORE INSERT OR DELETE OR UPDATE ON "public"."user_roles" FOR EACH ROW EXECUTE FUNCTION protect_super_admin_user_roles();
 
+-- Apply Storage configuration without changing the local table owners.
 -- Recreate the two observed Storage buckets and object policies; no objects are copied.
 INSERT INTO storage.buckets (id,name,public,file_size_limit,allowed_mime_types) VALUES ('banner-media','banner-media',true,5242880,ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif']::text[]) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,public=EXCLUDED.public,file_size_limit=EXCLUDED.file_size_limit,allowed_mime_types=EXCLUDED.allowed_mime_types;
 INSERT INTO storage.buckets (id,name,public,file_size_limit,allowed_mime_types) VALUES ('complaint-evidence','complaint-evidence',false,262144,ARRAY['image/webp']::text[]) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,public=EXCLUDED.public,file_size_limit=EXCLUDED.file_size_limit,allowed_mime_types=EXCLUDED.allowed_mime_types;
@@ -12118,6 +12119,7 @@ CREATE POLICY "public complaint evidence upload" ON storage.objects AS PERMISSIV
 CREATE POLICY "published complaint evidence read" ON storage.objects AS PERMISSIVE FOR SELECT TO "anon", "authenticated" USING (((bucket_id = 'complaint-evidence'::text) AND private.is_published_complaint_evidence(name)));
 
 -- Match captured Storage table RLS flags and grants; keep storage policies authoritative.
+SET LOCAL ROLE supabase_storage_admin;
 ALTER TABLE "storage"."buckets" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "storage"."buckets" FROM PUBLIC, anon, authenticated, service_role;
 GRANT DELETE ON TABLE "storage"."buckets" TO "anon";
@@ -12135,6 +12137,8 @@ GRANT SELECT ON TABLE "storage"."buckets" TO "service_role";
 GRANT TRIGGER ON TABLE "storage"."buckets" TO "service_role";
 GRANT TRUNCATE ON TABLE "storage"."buckets" TO "service_role";
 GRANT UPDATE ON TABLE "storage"."buckets" TO "service_role";
+RESET ROLE;
+SET LOCAL ROLE supabase_storage_admin;
 ALTER TABLE "storage"."objects" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "storage"."objects" FROM PUBLIC, anon, authenticated, service_role;
 GRANT DELETE ON TABLE "storage"."objects" TO "anon";
@@ -12152,5 +12156,6 @@ GRANT SELECT ON TABLE "storage"."objects" TO "service_role";
 GRANT TRIGGER ON TABLE "storage"."objects" TO "service_role";
 GRANT TRUNCATE ON TABLE "storage"."objects" TO "service_role";
 GRANT UPDATE ON TABLE "storage"."objects" TO "service_role";
+RESET ROLE;
 
 COMMIT;

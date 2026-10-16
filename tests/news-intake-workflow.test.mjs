@@ -123,6 +123,52 @@ test('the report is not published when the server review result is no longer rea
   assert.match(result.blocked[0].reason, /remains unpublished/);
 });
 
+test('report creation failure cannot proceed to review or publication', async () => {
+  const events = [];
+  const result = await publishSelectedNewsCandidates([candidate()], {
+    previewSourcedReport: async () => readyPreview,
+    createSourcedReport: async () => { events.push('create'); throw new Error('synthetic create failure'); },
+    completeItemReview: async () => { events.push('review'); return { ready: true }; },
+    publishComplaint: async () => { events.push('publish'); },
+  });
+
+  assert.deepEqual(events, ['create']);
+  assert.equal(result.published.length, 0);
+  assert.equal(result.blocked.length, 1);
+  assert.equal(result.blocked[0].itemId, 'item-1');
+});
+
+test('review transport failure leaves the sourced report unpublished', async () => {
+  const events = [];
+  const result = await publishSelectedNewsCandidates([candidate()], {
+    previewSourcedReport: async () => readyPreview,
+    createSourcedReport: async () => { events.push('create'); return { reportId: 'synthetic-draft-1' }; },
+    completeItemReview: async () => { events.push('review'); throw new Error('synthetic review failure'); },
+    publishComplaint: async () => { events.push('publish'); },
+  });
+
+  assert.deepEqual(events, ['create', 'review']);
+  assert.equal(result.published.length, 0);
+  assert.equal(result.blocked.length, 1);
+  assert.equal(result.blocked[0].itemId, 'item-1');
+  assert.equal(events.includes('publish'), false);
+});
+
+test('publication transport failure is blocked and never counted as a successful publish', async () => {
+  const events = [];
+  const result = await publishSelectedNewsCandidates([candidate()], {
+    previewSourcedReport: async () => readyPreview,
+    createSourcedReport: async () => { events.push('create'); return { reportId: 'synthetic-draft-1' }; },
+    completeItemReview: async () => { events.push('review'); return { ready: true }; },
+    publishComplaint: async () => { events.push('publish'); throw new Error('synthetic publish failure'); },
+  });
+
+  assert.deepEqual(events, ['create', 'review', 'publish']);
+  assert.deepEqual(result.published, []);
+  assert.equal(result.blocked.length, 1);
+  assert.equal(result.blocked[0].itemId, 'item-1');
+});
+
 test('repeated item identifiers cannot create or publish the same selected candidate twice', async () => {
   const events = [];
   const repeated = candidate('same-item');

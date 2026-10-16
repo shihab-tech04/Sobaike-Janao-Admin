@@ -25,6 +25,7 @@ export interface NewsIntakePublicationResult {
 }
 
 export interface NewsIntakePublicationActions {
+  checkExistingReport(canonicalUrl: string): Promise<unknown>;
   previewSourcedReport(payload: unknown): Promise<unknown>;
   createSourcedReport(payload: unknown): Promise<unknown>;
   completeItemReview(itemId: string, reportId: string): Promise<unknown>;
@@ -32,6 +33,10 @@ export interface NewsIntakePublicationActions {
 }
 
 export function getManualNewsCandidates(run: unknown): NewsIntakeRecord[];
+export function getResumableNewsCandidates(
+  run: unknown,
+  reportStatuses?: Record<string, string> | Map<string, string>
+): NewsIntakeRecord[];
 export function normalizeNewsSourcePreview(value: unknown): NewsSourcePreview | null;
 export function isPublishableSourcedReportPreview(value: unknown): boolean;
 export function publishSelectedNewsCandidates(

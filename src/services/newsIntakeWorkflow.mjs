@@ -23,6 +23,23 @@ export function getManualNewsCandidates(run) {
   });
 }
 
+export function getResumableNewsCandidates(run, reportStatuses = {}) {
+  if (!isRecord(run) || run.triggerType !== 'manual' || !Array.isArray(run.items)) return [];
+
+  return run.items.filter((item) => {
+    if (!isRecord(item)) return false;
+    const id = asText(item.id);
+    const reportId = asText(item.reportId);
+    const currentStatus = reportStatuses instanceof Map ? reportStatuses.get(id) : reportStatuses?.[id];
+    return item.itemKind === 'article'
+      && item.action === 'created_draft'
+      && item.duplicateStatus === 'clear'
+      && id !== ''
+      && reportId !== ''
+      && currentStatus === 'submitted';
+  });
+}
+
 export function normalizeNewsSourcePreview(value) {
   if (!isRecord(value) || value.approved !== true) return null;
 
@@ -77,8 +94,44 @@ export async function publishSelectedNewsCandidates(items, actions) {
     return { published: [], blocked: [], writesStarted: false };
   }
 
+  // The database's global unique index keys on normalize_source_url(), which
+  // trims whitespace, removes fragments, and removes one trailing slash.
+  const sourceGroups = new Map();
+  for (const item of uniqueItems) {
+    const sourceUrl = asText(item?.canonicalUrl)
+      .replace(/#.*$/, '')
+      .replace(/\/$/, '');
+    if (!sourceUrl) continue;
+    sourceGroups.set(sourceUrl, [...(sourceGroups.get(sourceUrl) || []), item]);
+  }
+  const duplicateSourceItems = [...sourceGroups.values()].filter((group) => group.length > 1).flat();
+  if (duplicateSourceItems.length > 0) {
+    return {
+      published: [],
+      blocked: duplicateSourceItems.map((item) => ({
+        itemId: asText(item.id),
+        reason: 'Selected items contain the same canonical source URL; no reports were created.',
+      })),
+      writesStarted: false,
+    };
+  }
+
   const checks = await Promise.all(uniqueItems.map(async (item) => {
     try {
+      const existingReportId = asText(item?.reportId);
+      if (existingReportId) {
+        const duplicate = await actions.checkExistingReport(asText(item.canonicalUrl));
+        const matchesLinkedReport = isRecord(duplicate)
+          && duplicate.duplicate === true
+          && asText(duplicate.complaintId) === existingReportId;
+        return matchesLinkedReport && duplicate.complaintStatus === 'submitted'
+          ? { item, ready: true }
+          : {
+            item,
+            ready: false,
+            reason: 'The linked report is no longer an unpublished submitted draft; no repeat publication was attempted.',
+          };
+      }
       const preview = await actions.previewSourcedReport(item.reviewPayload);
       return isPublishableSourcedReportPreview(preview)
         ? { item, ready: true }
@@ -100,19 +153,21 @@ export async function publishSelectedNewsCandidates(items, actions) {
   const published = [];
   const blocked = [];
   for (const { item } of checks) {
-    let reportId = '';
-    try {
-      const created = await actions.createSourcedReport(item.reviewPayload);
-      reportId = asText(created?.reportId ?? created?.report_id);
-      if (!reportId) throw new Error('The source contract returned no report ID.');
-    } catch (error) {
-      blocked.push({
-        itemId: asText(item.id),
-        stage: 'create',
-        outcomeUnknown: writeOutcomeUnknown(error),
-        reason: errorText(error),
-      });
-      continue;
+    let reportId = asText(item.reportId);
+    if (!reportId) {
+      try {
+        const created = await actions.createSourcedReport(item.reviewPayload);
+        reportId = asText(created?.reportId ?? created?.report_id);
+        if (!reportId) throw new Error('The source contract returned no report ID.');
+      } catch (error) {
+        blocked.push({
+          itemId: asText(item.id),
+          stage: 'create',
+          outcomeUnknown: writeOutcomeUnknown(error),
+          reason: errorText(error),
+        });
+        continue;
+      }
     }
 
     try {

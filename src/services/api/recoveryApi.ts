@@ -85,6 +85,14 @@ export const recoveryApi = {
     return result as Record<string, unknown>;
   },
 
+  async checkNewsSourceDuplicate(canonicalUrl: string): Promise<Record<string, unknown>> {
+    const result = await readRpc('admin_check_source_duplicate', { p_canonical_url: canonicalUrl });
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('The linked source status could not be verified.');
+    }
+    return result as Record<string, unknown>;
+  },
+
   async createSourcedReport(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     ensureConfigured();
     const { data, error } = await supabase.rpc('admin_create_sourced_report_from_intake', { p_payload: payload });

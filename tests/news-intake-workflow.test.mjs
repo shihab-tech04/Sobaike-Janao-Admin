@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   getManualNewsCandidates,
+  getResumableNewsCandidates,
   isPublishableSourcedReportPreview,
   normalizeNewsSourcePreview,
   publishSelectedNewsCandidates,
@@ -42,6 +43,26 @@ test('manual selection excludes automatic runs, duplicate items, review items, a
   };
   assert.deepEqual(getManualNewsCandidates(manual).map((item) => item.id), ['ready']);
   assert.deepEqual(getManualNewsCandidates({ ...manual, triggerType: 'automatic' }), []);
+});
+
+test('only a linked submitted draft becomes a resumable manual candidate', () => {
+  const run = {
+    triggerType: 'manual',
+    items: [
+      candidate('submitted', { reportId: 'synthetic-draft-1', reviewPayload: null }),
+      candidate('published', { reportId: 'synthetic-published-1', reviewPayload: null }),
+      candidate('unknown', { reportId: 'synthetic-unknown-1', reviewPayload: null }),
+      candidate('duplicate', { reportId: 'synthetic-duplicate-1', duplicateStatus: 'exact', reviewPayload: null }),
+    ],
+  };
+
+  assert.deepEqual(getResumableNewsCandidates(run, {
+    submitted: 'submitted',
+    published: 'published',
+    unknown: 'unknown',
+    duplicate: 'submitted',
+  }).map((item) => item.id), ['submitted']);
+  assert.deepEqual(getResumableNewsCandidates({ ...run, triggerType: 'automatic' }, { submitted: 'submitted' }), []);
 });
 
 test('news source preview requires approved standard HTTPS metadata', () => {
@@ -265,6 +286,111 @@ test('a retried request is stopped by the source duplicate preflight contract', 
   assert.equal(second.blocked.length, 1);
   assert.equal(events.filter((event) => event === 'create').length, 1);
   assert.equal(events.filter((event) => event === 'publish').length, 1);
+});
+
+test('a submitted linked draft can resume after refresh without creating a second report', async () => {
+  const events = [];
+  const result = await publishSelectedNewsCandidates([
+    candidate('linked', { reportId: 'synthetic-draft-1', reviewPayload: null }),
+  ], {
+    checkExistingReport: async (url) => {
+      events.push(`check:${url}`);
+      return { duplicate: true, complaintId: 'synthetic-draft-1', complaintStatus: 'submitted' };
+    },
+    previewSourcedReport: async () => { events.push('preview'); return readyPreview; },
+    createSourcedReport: async () => { events.push('create'); throw new Error('must not create a second report'); },
+    completeItemReview: async (itemId, reportId) => {
+      events.push(`review:${itemId}:${reportId}`);
+      return { ready: true };
+    },
+    publishComplaint: async (reportId) => { events.push(`publish:${reportId}`); },
+  });
+
+  assert.deepEqual(events, [
+    'check:https://news.example/articles/linked',
+    'review:linked:synthetic-draft-1',
+    'publish:synthetic-draft-1',
+  ]);
+  assert.deepEqual(result.published, [{ itemId: 'linked', reportId: 'synthetic-draft-1' }]);
+  assert.deepEqual(result.blocked, []);
+});
+
+test('a published linked report is blocked before any retry write', async () => {
+  const events = [];
+  const result = await publishSelectedNewsCandidates([
+    candidate('linked', { reportId: 'synthetic-report-1', reviewPayload: null }),
+  ], {
+    checkExistingReport: async () => {
+      events.push('check');
+      return { duplicate: true, complaintId: 'synthetic-report-1', complaintStatus: 'published' };
+    },
+    previewSourcedReport: async () => { events.push('preview'); return readyPreview; },
+    createSourcedReport: async () => { events.push('create'); return { reportId: 'second-report' }; },
+    completeItemReview: async () => { events.push('review'); return { ready: true }; },
+    publishComplaint: async () => { events.push('publish'); },
+  });
+
+  assert.deepEqual(events, ['check']);
+  assert.equal(result.writesStarted, false);
+  assert.equal(result.published.length, 0);
+  assert.match(result.blocked[0].reason, /no repeat publication/);
+});
+
+test('canonical URL variants rejected by the database normalization block the selected batch before writes', async () => {
+  let previewCalls = 0;
+  const result = await publishSelectedNewsCandidates([
+    candidate('fragment', {
+      canonicalUrl: 'https://news.example/articles/shared#preview',
+      reviewPayload: { source: { canonicalUrl: 'https://news.example/articles/shared#preview' }, report: { titleBn: 'সিনথেটিক সংবাদ' } },
+    }),
+    candidate('slash', {
+      canonicalUrl: 'https://news.example/articles/shared/',
+      reviewPayload: { source: { canonicalUrl: 'https://news.example/articles/shared/' }, report: { titleBn: 'সিনথেটিক সংবাদ' } },
+    }),
+  ], {
+    checkExistingReport: async () => { throw new Error('unexpected linked check'); },
+    previewSourcedReport: async () => { previewCalls += 1; return readyPreview; },
+    createSourcedReport: async () => ({ reportId: 'should-not-create' }),
+    completeItemReview: async () => ({ ready: true }),
+    publishComplaint: async () => {},
+  });
+
+  assert.equal(previewCalls, 0);
+  assert.equal(result.writesStarted, false);
+  assert.deepEqual(result.blocked.map((item) => item.itemId), ['fragment', 'slash']);
+});
+
+test('an ambiguous publish is not retried after refresh when the linked report is already published', async () => {
+  const events = [];
+  const original = candidate('ambiguous');
+  const first = await publishSelectedNewsCandidates([original], {
+    checkExistingReport: async () => { events.push('check'); return { duplicate: false }; },
+    previewSourcedReport: async () => { events.push('preview'); return readyPreview; },
+    createSourcedReport: async () => { events.push('create'); return { reportId: 'synthetic-ambiguous-1' }; },
+    completeItemReview: async () => { events.push('review'); return { ready: true }; },
+    publishComplaint: async () => { events.push('publish'); throw new Error('response lost after commit'); },
+  });
+
+  const linkedAfterRefresh = candidate('ambiguous', { reportId: 'synthetic-ambiguous-1', reviewPayload: null });
+  assert.equal(first.blocked[0].stage, 'publish');
+  assert.equal(first.blocked[0].outcomeUnknown, true);
+  assert.deepEqual(getResumableNewsCandidates({ triggerType: 'manual', items: [linkedAfterRefresh] }, { ambiguous: 'published' }), []);
+
+  const retry = await publishSelectedNewsCandidates([linkedAfterRefresh], {
+    checkExistingReport: async () => {
+      events.push('refresh-check');
+      return { duplicate: true, complaintId: 'synthetic-ambiguous-1', complaintStatus: 'published' };
+    },
+    previewSourcedReport: async () => { events.push('retry-preview'); return readyPreview; },
+    createSourcedReport: async () => { events.push('retry-create'); return { reportId: 'duplicate' }; },
+    completeItemReview: async () => { events.push('retry-review'); return { ready: true }; },
+    publishComplaint: async () => { events.push('retry-publish'); },
+  });
+
+  assert.equal(retry.writesStarted, false);
+  assert.equal(retry.published.length, 0);
+  assert.equal(events.includes('retry-create'), false);
+  assert.equal(events.includes('retry-publish'), false);
 });
 
 test('Admin UI uses the manual scan, protected report contracts, bilingual copy, and responsive grid', async () => {

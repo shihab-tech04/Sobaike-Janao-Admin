@@ -11,6 +11,7 @@ import { NormalizedNewsDashboard, NormalizedNewsTaxonomy, RecoveryRecord } from 
 import { baseTokens } from '@/themes/tokens';
 import {
   getManualNewsCandidates,
+  getResumableNewsCandidates,
   isPublishableSourcedReportPreview,
   NewsSourcePreview,
   publishSelectedNewsCandidates,
@@ -47,8 +48,10 @@ const localizeDigits = (value: unknown, isBn: boolean): string => {
   return raw.replace(/[0-9]/g, (digit) => banglaDigits[Number(digit)] || digit);
 };
 
-const itemStatus = (item: RecoveryRecord, isBn: boolean): { label: string; tone: BadgeStatus } => {
+const itemStatus = (item: RecoveryRecord, isBn: boolean, linkedStatus?: string): { label: string; tone: BadgeStatus } => {
   if (text(item.reportId)) {
+    if (linkedStatus === 'submitted') return { label: isBn ? 'খসড়া প্রস্তুত' : 'Draft ready', tone: 'success' };
+    if (linkedStatus === 'published') return { label: isBn ? 'প্রকাশিত' : 'Published', tone: 'published' };
     return { label: isBn ? 'প্রতিবেদন যুক্ত' : 'Report linked', tone: 'review' };
   }
   if (item.action === 'created_draft' && item.duplicateStatus === 'clear' && !item.reportId) {
@@ -108,6 +111,7 @@ export const NewsIntakePage: React.FC = () => {
   const { language } = useLanguage();
   const isBn = language === 'bn';
   const [data, setData] = useState<NewsIntakeData | null>(null);
+  const [linkedReportStatuses, setLinkedReportStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
@@ -122,7 +126,28 @@ export const NewsIntakePage: React.FC = () => {
     setLoading(true);
     setLoadFailed(false);
     try {
-      setData(await recoveryApi.getNewsIntake());
+      const next = await recoveryApi.getNewsIntake();
+      const manual = next.dashboard.runs.find((run) => run.triggerType === 'manual');
+      const linked = (manual?.items ?? []).filter((item) =>
+        item.itemKind === 'article'
+        && item.action === 'created_draft'
+        && item.duplicateStatus === 'clear'
+        && Boolean(text(item.reportId))
+        && Boolean(safeHttpsUrl(item.canonicalUrl))
+      );
+      const statusPairs = await Promise.all(linked.map(async (item) => {
+        const id = text(item.id);
+        try {
+          const status = await recoveryApi.checkNewsSourceDuplicate(text(item.canonicalUrl));
+          return [id, status.duplicate === true && text(status.complaintId) === text(item.reportId)
+            ? text(status.complaintStatus, 'unknown')
+            : 'unknown'] as const;
+        } catch {
+          return [id, 'unknown'] as const;
+        }
+      }));
+      setLinkedReportStatuses(Object.fromEntries(statusPairs));
+      setData(next);
     } catch {
       setLoadFailed(true);
     } finally {
@@ -141,8 +166,11 @@ export const NewsIntakePage: React.FC = () => {
     [manualRun]
   );
   const candidates = useMemo(
-    () => getManualNewsCandidates(manualRun) as RecoveryRecord[],
-    [manualRun]
+    () => [
+      ...getManualNewsCandidates(manualRun),
+      ...getResumableNewsCandidates(manualRun, linkedReportStatuses),
+    ] as RecoveryRecord[],
+    [manualRun, linkedReportStatuses]
   );
   const candidateIds = useMemo(() => candidates.map((item) => text(item.id)).filter(Boolean), [candidates]);
   const candidateIdKey = candidateIds.join('|');
@@ -253,6 +281,7 @@ export const NewsIntakePage: React.FC = () => {
     setActionCounts(null);
     try {
       const result = await publishSelectedNewsCandidates(selectedCandidates, {
+        checkExistingReport: (canonicalUrl) => recoveryApi.checkNewsSourceDuplicate(canonicalUrl),
         previewSourcedReport: (payload) => recoveryApi.previewSourcedReport(payload as Record<string, unknown>),
         createSourcedReport: (payload) => recoveryApi.createSourcedReport(payload as Record<string, unknown>),
         completeItemReview: (itemId, reportId) => recoveryApi.completeNewsItemReview(itemId, reportId),
@@ -293,7 +322,7 @@ export const NewsIntakePage: React.FC = () => {
   const reportPreviewReady = isPublishableSourcedReportPreview(reportPreview);
   const sourceTitle = text(activeItem?.sourceTitle, text(payloadSource?.sourceTitle, isBn ? 'শিরোনাম পাওয়া যায়নি' : 'Untitled source'));
   const sourceLink = preview?.source?.canonicalUrl || safeHttpsUrl(payloadSource?.canonicalUrl || activeItem?.canonicalUrl);
-  const itemState = activeItem ? itemStatus(activeItem, isBn) : null;
+  const itemState = activeItem ? itemStatus(activeItem, isBn, linkedReportStatuses[text(activeItem.id)]) : null;
 
   const statusText = (state: typeof actionState) => {
     if (state === 'scan') return isBn ? 'উৎস পরীক্ষা সম্পন্ন হয়েছে।' : 'Source check completed.';
@@ -540,7 +569,17 @@ export const NewsIntakePage: React.FC = () => {
                 </p>
               ) : text(activeItem.reportId) ? (
                 <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50/70 px-3 py-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
-                  <p>{isBn ? 'এই উৎসের সঙ্গে একটি প্রতিবেদন যুক্ত হয়েছে। প্রকাশের অবস্থা যাচাই করতে প্রতিবেদন তালিকা রিফ্রেশ করুন।' : 'A report is linked to this source. Refresh the reports list to verify its publication status.'}</p>
+                  <p>{linkedReportStatuses[text(activeItem.id)] === 'submitted'
+                    ? (isBn
+                      ? 'জমা দেওয়া একটি খসড়া প্রতিবেদন যুক্ত আছে। প্রকাশের আগে সার্ভার আবার এর উৎস ও পর্যালোচনার অবস্থা যাচাই করবে; নতুন প্রতিবেদন তৈরি হবে না।'
+                      : 'A submitted draft is linked to this source. The server will recheck its source and review state before publishing; no second report will be created.')
+                    : linkedReportStatuses[text(activeItem.id)] === 'published'
+                      ? (isBn
+                        ? 'এই প্রতিবেদনটি ইতিমধ্যে প্রকাশিত। পুনরায় প্রকাশের চেষ্টা করা হবে না।'
+                        : 'This report is already published. A repeat publication will not be attempted.')
+                      : (isBn
+                        ? 'প্রতিবেদনের বর্তমান অবস্থা যাচাই করা যায়নি বা এটি প্রকাশের জন্য যোগ্য নয়। নিরাপত্তার জন্য পুনরায় প্রকাশ বন্ধ আছে।'
+                        : 'The linked report could not be verified as an unpublished submitted draft. Retry is blocked for safety.')}</p>
                   <p className="break-all text-xs font-medium text-slate-600 dark:text-slate-400">
                     <span>{isBn ? 'প্রতিবেদন আইডি' : 'Report ID'}: </span>
                     <span className="font-mono">{text(activeItem.reportId)}</span>
@@ -576,8 +615,8 @@ export const NewsIntakePage: React.FC = () => {
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                   {isBn
-                    ? 'প্রকাশের আগে নির্বাচিত সব আইটেমে উৎস, ডুপ্লিকেট, ফর্ম ও গোপনীয়তার শর্ত আবার যাচাই হবে। প্রাথমিক যাচাই ব্যর্থ হলে ব্যাচে কোনো প্রতিবেদন তৈরি হবে না; পরের সার্ভার যাচাইয়ে কোনো আইটেম আটকে গেলে সেটি প্রকাশিত হবে না।'
-                    : 'Every selected item is rechecked for approved source, duplicates, form requirements, and privacy before any report is created. A failed preflight blocks the batch; if a later server review holds an item, that report remains unpublished.'}
+                    ? 'নতুন প্রতিবেদনের আগে নির্বাচিত সব আইটেমে উৎস, ডুপ্লিকেট, ফর্ম ও গোপনীয়তার শর্ত আবার যাচাই হবে। যুক্ত খসড়ার বর্তমান অবস্থা যাচাই করে একই প্রতিবেদন পুনরায় ব্যবহার করা হবে। প্রাথমিক যাচাই ব্যর্থ হলে ব্যাচে কোনো লেখা হবে না; পরের সার্ভার পর্যালোচনায় আটকে গেলে প্রতিবেদন প্রকাশিত হবে না।'
+                    : 'New reports are rechecked for approved source, duplicates, form requirements, and privacy before creation. Linked drafts are checked and reused instead of creating a second report. A failed preflight starts no writes; a later server review hold keeps the report unpublished.'}
                 </p>
               </div>
             </CardContent>

@@ -1,0 +1,49 @@
+{
+  "title": "Sobaike Janao test-only backend baseline manifest",
+  "status": "prepared for isolated GitHub Actions execution; not applied yet",
+  "capturedAt": "2026-10-16",
+  "evidenceDerived": true,
+  "notHistoricalMigrationSeries": true,
+  "notProductionDeployable": true,
+  "sourceEvidence": {
+    "priorCurrentContractFile": "Sobaike_Current_Production_Contract_Evidence_2026-10-16.json",
+    "priorCurrentContractSha256": "0b1c1a81b500f2b4ed6352456ef822068f5dfba0f19f3864343c2ae0fde4e790",
+    "readOnlyCatalogFile": "source-recovery/Sobaike_Backend_Source_Recovery_Addendum_2026-10-16.json",
+    "currentCatalogSnapshotSha256": "7bfdf7d62ce7946f05e8e7629a748f2f55e24c4f83fe4d7c403dc0e9a8d97f29",
+    "databaseMajorVersion": 17,
+    "databaseFullVersion": "17.6"
+  },
+  "reconstructedObjects": {
+    "relations": 40,
+    "columns": 450,
+    "constraints": 212,
+    "indexes": 136,
+    "rlsFlags": 40,
+    "policies": 46,
+    "tableGrantRows": 414,
+    "triggers": 36,
+    "functionDefinitions": 117,
+    "functionGrantRows": 220,
+    "sequences": 4,
+    "schemaGrantRows": 17,
+    "sequenceGrantRows": 6,
+    "storageAccessMetadataRows": 46,
+    "storageSchemaGrantRows": 10
+  },
+  "fixture": {
+    "file": "test-only/current_contract_baseline.sql",
+    "sha256": "bde5ba2137a8c2d9215e86ebb8d618a1ac1d6dfdd00521973a32d6ba11196a0a",
+    "includesApplicationRows": false,
+    "includesReporterRecords": false,
+    "includesProductionSecrets": false,
+    "includesStorageObjects": false,
+    "copiesSequenceCounters": false,
+    "containsObservedStorageBucketConfiguration": true
+  },
+  "notRecovered": {
+    "orderedHistoricalMigrationFilesMissing": 183,
+    "authProviderRedirectAndMfaSettings": "not visible in read-only sources",
+    "defaultPrivilegeMetadata": "not captured; only current table/function/schema/sequence grants are included",
+    "hostedStagingAcceptance": "not performed"
+  }
+}

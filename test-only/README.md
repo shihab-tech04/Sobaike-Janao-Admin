@@ -1,0 +1,11 @@
+# Test-only recovery backend
+
+`current_contract_baseline.sql` is an evidence-derived snapshot of the verified current database contract. It is **not** the original historical migration series and is **not** a migration or production deployment script. The original ordered migration series remains incomplete: 183 production migration-registry entries have no recovered source file, and this fixture must not be used to reconstruct or overwrite them.
+
+The baseline was generated from read-only catalog evidence captured on 2026-10-16. It represents 40 application relations, 450 columns, 212 constraints, 136 indexes, 46 policies, 36 triggers and 117 combined current SQL function definitions. It contains no application rows, reporter records, production secrets, storage objects or sequence counters. The only inserts configure the two observed Storage buckets. SHA-256: `bde5ba2137a8c2d9215e86ebb8d618a1ac1d6dfdd00521973a32d6ba11196a0a`.
+
+GitHub Actions starts a fresh unlinked Supabase CLI project under `local-supabase/`, applies this one fixture directly with a loopback PostgreSQL connection, and runs catalog/permission assertions. It does not run the recovered historical migrations, link to a hosted project, or load any hosted credentials. CLI generated Auth/API credentials exist only in the disposable runner.
+
+The test-only catalog assertions are not full Public or Admin journey acceptance. No journey is marked complete until the real application, local Auth, storage and relevant local Edge Function calls are exercised together.
+
+The three Edge Function directories added in this recovery batch are byte-for-byte source files retrieved read-only from the currently deployed project versions. They contain no hard-coded credential matches in the targeted source scan. Existing local `admin-create-user` and `admin-delete-user` source files were not replaced because they differ from the deployed versions; that divergence is recorded for a later contract review.

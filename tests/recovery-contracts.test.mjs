@@ -9,10 +9,11 @@ import {
   summarizeNewsRun,
 } from '../src/services/recoveryContracts.mjs';
 
-const [api, routes, newsPage] = await Promise.all([
+const [api, routes, newsPage, supabaseConfig] = await Promise.all([
   readFile(new URL('../src/services/api/recoveryApi.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/routes/AppRoutes.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/pages/NewsIntake/NewsIntakePage.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8'),
 ]);
 
 test('News Intake contract normalizer keeps source, run, item, and automation payloads separated', () => {
@@ -65,4 +66,11 @@ test('Admin recovery pages use the existing permission and server contracts', ()
   assert.match(api, /p_category_key: categoryKey[\s\S]*p_content: content/);
   assert.match(api, /body: \{ mode: 'read' \}/);
   assert.doesNotMatch(newsPage, /admin_begin_news_intake_run|admin_record_news_intake_item|news-intake-scan/);
+});
+
+test('an unconfigured Admin build cannot fall back to the production Supabase project', () => {
+  assert.match(supabaseConfig, /sobaike-backend-not-configured\.invalid/);
+  assert.match(supabaseConfig, /recovery-preview-backend-disabled/);
+  assert.doesNotMatch(supabaseConfig, /ahiaymyqfmyyrjkwgvhi\.supabase\.co|sb_publishable_/);
+  assert.match(supabaseConfig, /metaEnv\?\.VITE_SUPABASE_URL\?\.trim\(\)/);
 });

@@ -25,7 +25,9 @@ try {
       if (host.endsWith('.supabase.co')) supabaseHosts.add(host);
     });
 
-    await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${baseUrl.replace(/\/+$/, '')}/#/login`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#login-email').waitFor({ state: 'visible' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('#login-email').waitFor({ state: 'visible' });
     assert.equal((await page.locator('label[for="login-email"]').innerText()).trim(), 'Email');
 

@@ -9,51 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  runner-smoke:
-    name: Free ubuntu-latest local Supabase runtime smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.121.0
-
-      - name: Verify Docker and Supabase CLI
-        run: |
-          set -euo pipefail
-          docker info --format 'Docker server: {{.ServerVersion}}'
-          supabase --version
-
-      - name: Start a blank disposable local Supabase stack
-        shell: bash
-        run: |
-          set -euo pipefail
-          smoke_dir="$RUNNER_TEMP/sobaike-runtime-smoke"
-          mkdir -p "$smoke_dir"
-          cd "$smoke_dir"
-          supabase init --yes > "$RUNNER_TEMP/sobaike-supabase-init.log" 2>&1
-          if ! supabase start > "$RUNNER_TEMP/sobaike-supabase-start.log" 2>&1; then
-            echo "::error title=Local Supabase runtime smoke failed::The blank disposable local stack did not start. CLI output is withheld to avoid printing generated local credentials."
-            exit 1
-          fi
-          if ! supabase status >/dev/null 2>&1; then
-            echo "::error title=Local Supabase runtime smoke failed::The blank disposable stack did not reach ready status."
-            exit 1
-          fi
-          echo "## Runner runtime smoke: PASS" >> "$GITHUB_STEP_SUMMARY"
-          echo "ubuntu-latest Docker and Supabase CLI started a blank local project. It used no project link, secrets, production endpoint, migrations, or records." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Stop the disposable local stack
-        if: always()
-        shell: bash
-        run: |
-          if [[ -d "$RUNNER_TEMP/sobaike-runtime-smoke" ]]; then
-            cd "$RUNNER_TEMP/sobaike-runtime-smoke"
-            supabase stop >/dev/null 2>&1 || true
-          fi
-
   app-readiness:
     name: Application stack reconstruction preflight
     runs-on: ubuntu-latest
@@ -68,7 +23,7 @@ jobs:
 
   local-app-integration:
     name: Admin isolated workflow integration
-    needs: [runner-smoke, app-readiness]
+    needs: [app-readiness]
     if: needs.app-readiness.outputs.stack_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30

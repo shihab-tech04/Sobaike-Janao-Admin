@@ -1,0 +1,89 @@
+name: Recovery test-only backend baseline
+
+on:
+  push:
+    branches:
+      - recovery/2026-10-15-admin-modules
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply-verified-contract-baseline:
+    name: Apply current contract baseline on isolated local Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+
+      - name: Verify baseline manifest digest and safety markers
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+
+          manifest = json.loads(Path("test-only/baseline-manifest.json").read_text())
+          baseline = Path("test-only/current_contract_baseline.sql").read_bytes()
+          actual = hashlib.sha256(baseline).hexdigest()
+          expected = manifest["fixture"]["sha256"]
+          if actual != expected:
+              raise SystemExit(f"Baseline SHA-256 mismatch: expected {expected}, got {actual}")
+          if not manifest["notHistoricalMigrationSeries"] or not manifest["notProductionDeployable"]:
+              raise SystemExit("Refusing a fixture without its test-only/non-production safety markers")
+          if manifest["fixture"]["includesApplicationRows"] or manifest["fixture"]["includesReporterRecords"]:
+              raise SystemExit("Refusing a fixture marked as containing application or reporter rows")
+          print(f"Verified test-only baseline digest {actual} ({len(baseline)} bytes).")
+          PY
+
+      - name: Start disposable local Supabase project
+        working-directory: test-only/local-supabase
+        run: supabase start
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Verify local target and export its temporary database URL
+        working-directory: test-only/local-supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase status --output env > "$RUNNER_TEMP/sobaike-admin-local.env"
+          python3 - "$RUNNER_TEMP/sobaike-admin-local.env" "$GITHUB_ENV" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          values = {}
+          for line in open(sys.argv[1], encoding="utf-8"):
+              if "=" not in line:
+                  continue
+              name, value = line.rstrip("\n").split("=", 1)
+              values[name] = value.strip().strip('"')
+          db_url = values.get("DB_URL") or values.get("DATABASE_URL")
+          parsed = urlparse(db_url or "")
+          if parsed.scheme not in {"postgres", "postgresql"} or parsed.hostname not in {"127.0.0.1", "localhost"} or parsed.port != 54322:
+              raise SystemExit("Refusing a non-loopback database target; expected the disposable local port 54322.")
+          with open(sys.argv[2], "a", encoding="utf-8") as output:
+              output.write(f"RECOVERY_LOCAL_DB_URL={db_url}\n")
+          print("Verified database target is loopback-only on port 54322.")
+          PY
+
+      - name: Apply evidence-derived test-only baseline
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/current_contract_baseline.sql
+
+      - name: Seed seven synthetic taxonomy categories and verify anon read
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/local-supabase/seed_synthetic_taxonomy.sql
+
+      - name: Assert recovered grants, RLS, Storage, functions, and triggers
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/local-supabase/assert_contracts.sql
+
+      - name: Stop disposable local project
+        if: always()
+        working-directory: test-only/local-supabase
+        run: supabase stop >/dev/null 2>&1 || true

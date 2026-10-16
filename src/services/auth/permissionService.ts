@@ -7,6 +7,8 @@ export const CANONICAL_PERMISSIONS = [
   'complaints.evidence_view',
   'complaints.export',
   'complaints.publish',
+  'banners.manage',
+  'system_health.view',
   'complaints.unpublish',
   'complaints.reject',
   'categories.view',

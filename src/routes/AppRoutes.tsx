@@ -31,6 +31,9 @@ import {
   EditUserPage,
   NotificationsPage,
   ActivityLogPage,
+  NewsIntakePage,
+  BannerCmsPage,
+  SystemHealthPage,
   NotFoundPage,
 } from '@/pages';
 
@@ -169,6 +172,14 @@ const routes = createRoutesFromElements(
         }
       />
       <Route
+        path="/news-intake"
+        element={
+          <PermissionGuard requiredPermission="complaints.publish">
+            <NewsIntakePage />
+          </PermissionGuard>
+        }
+      />
+      <Route
         path="/complaints/:id"
         element={
           <PermissionGuard requiredPermission="complaints.view">
@@ -189,6 +200,22 @@ const routes = createRoutesFromElements(
         element={
           <PermissionGuard requiredPermission="categories.view">
             <CategoriesPage />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/banners"
+        element={
+          <PermissionGuard requiredPermission="banners.manage">
+            <BannerCmsPage />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/system-health"
+        element={
+          <PermissionGuard requiredPermission="system_health.view">
+            <SystemHealthPage />
           </PermissionGuard>
         }
       />

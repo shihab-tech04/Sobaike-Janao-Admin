@@ -16,4 +16,7 @@ export * from './Users/UserDetailPage';
 export * from './Users/EditUserPage';
 export * from './Notifications/NotificationsPage';
 export * from './ActivityLog/ActivityLogPage';
+export * from './NewsIntake/NewsIntakePage';
+export * from './Banners/BannerCmsPage';
+export * from './SystemHealth/SystemHealthPage';
 export * from './NotFound/NotFoundPage';

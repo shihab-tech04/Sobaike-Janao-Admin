@@ -4346,6 +4346,111 @@ begin
   );
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.admin_notification_can_currently_view(p_recipient_user_id uuid, p_audience_mode text, p_required_all_permissions text[], p_required_any_permissions text[], p_target_type text, p_target_id text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+    v_caller_id uuid;
+    v_is_super_admin boolean;
+    v_eff_perms text[];
+    v_target_uuid uuid;
+    v_scope_ok boolean;
+begin
+    v_caller_id := auth.uid();
+
+    if v_caller_id is null
+       or p_recipient_user_id is null
+       or v_caller_id <> p_recipient_user_id
+       or not public.is_active_admin()
+    then
+        return false;
+    end if;
+
+    select coalesce(au.is_super_admin, false)
+    into v_is_super_admin
+    from public.admin_users au
+    where au.user_id = v_caller_id
+      and au.active = true;
+
+    if v_is_super_admin is true then
+        return true;
+    end if;
+
+    if p_audience_mode = 'personal' then
+        return true;
+
+    elsif p_audience_mode = 'super_admin_only' then
+        return false;
+
+    elsif p_audience_mode = 'permission' then
+        v_eff_perms := array(
+            select p_id
+            from public.admin_notification_get_effective_permissions(v_caller_id) as p_id
+        );
+
+        if p_required_all_permissions is not null
+           and cardinality(p_required_all_permissions) > 0
+           and not (p_required_all_permissions <@ v_eff_perms)
+        then
+            return false;
+        end if;
+
+        if p_required_any_permissions is not null
+           and cardinality(p_required_any_permissions) > 0
+           and not (p_required_any_permissions && v_eff_perms)
+        then
+            return false;
+        end if;
+
+        if p_target_type = 'admin_user' then
+            if p_target_id is null or length(btrim(p_target_id)) = 0 then
+                return false;
+            end if;
+
+            begin
+                v_target_uuid := btrim(p_target_id)::uuid;
+            exception when others then
+                return false;
+            end;
+
+            v_scope_ok := public.admin_notification_can_view_user_scope(
+                v_caller_id, v_target_uuid
+            );
+
+            if v_scope_ok is not true then
+                return false;
+            end if;
+
+        elsif p_target_type = 'role' then
+            if p_target_id is null or length(btrim(p_target_id)) = 0 then
+                return false;
+            end if;
+
+            v_scope_ok := public.admin_notification_can_view_role_scope(
+                v_caller_id, btrim(p_target_id)
+            );
+
+            if v_scope_ok is not true then
+                return false;
+            end if;
+
+        elsif p_target_type = 'complaint' then
+            null;
+        elsif p_target_type is null then
+            null;
+        else
+            return false;
+        end if;
+
+        return true;
+    end if;
+
+    return false;
+end;
+$function$;
 CREATE OR REPLACE FUNCTION public.admin_notify_banner_published_trigger()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11877,6 +11982,8 @@ GRANT EXECUTE ON FUNCTION "public"."admin_get_news_intake_scan_sources"() TO "se
 GRANT EXECUTE ON FUNCTION "public"."admin_get_news_intake_taxonomy"() TO "authenticated";
 GRANT EXECUTE ON FUNCTION "public"."admin_get_site_banners"() TO "authenticated";
 GRANT EXECUTE ON FUNCTION "public"."admin_get_system_health"() TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."admin_notification_can_currently_view"(uuid, text, text[], text[], text, text) TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."admin_notification_can_currently_view"(uuid, text, text[], text[], text, text) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."admin_notification_can_view_role_scope"(uuid, text) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."admin_notification_can_view_user_scope"(uuid, uuid) TO "service_role";
 GRANT EXECUTE ON FUNCTION "public"."admin_notification_get_effective_permissions"(uuid) TO "service_role";

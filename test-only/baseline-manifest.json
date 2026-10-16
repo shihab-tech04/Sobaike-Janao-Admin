@@ -11,7 +11,9 @@
     "readOnlyCatalogFile": "source-recovery/Sobaike_Backend_Source_Recovery_Addendum_2026-10-16.json",
     "currentCatalogSnapshotSha256": "7bfdf7d62ce7946f05e8e7629a748f2f55e24c4f83fe4d7c403dc0e9a8d97f29",
     "databaseMajorVersion": 17,
-    "databaseFullVersion": "17.6"
+    "databaseFullVersion": "17.6",
+    "constraintFunctionDependencyRows": 1,
+    "policyFunctionDependencyRows": 10
   },
   "reconstructedObjects": {
     "relations": 40,
@@ -22,8 +24,8 @@
     "policies": 46,
     "tableGrantRows": 414,
     "triggers": 36,
-    "functionDefinitions": 118,
-    "functionGrantRows": 222,
+    "functionDefinitions": 119,
+    "functionGrantRows": 225,
     "sequences": 4,
     "schemaGrantRows": 17,
     "sequenceGrantRows": 6,
@@ -32,7 +34,7 @@
   },
   "fixture": {
     "file": "test-only/current_contract_baseline.sql",
-    "sha256": "f89209231a0a9281271308f2975cd483f0a06faf8bb329c32f24e5fe43665436",
+    "sha256": "031388bba52a93deefde62726b948c105731c5aeda7c36fb07b3e479d498576e",
     "includesApplicationRows": false,
     "includesReporterRecords": false,
     "includesProductionSecrets": false,
@@ -41,7 +43,7 @@
     "containsObservedStorageBucketConfiguration": true,
     "localSuperuserSelfGrantRowsSkipped": {
       "publicAndPrivateTables": 280,
-      "functions": 118,
+      "functions": 119,
       "storageTables": 14,
       "schemas": 1,
       "sequences": 0
@@ -51,7 +53,7 @@
       "foreign key",
       "check"
     ],
-    "functionCreationOrder": "dependency-aware from captured SQL call references; check-constraint helper dependencies validated from pg_depend"
+    "functionCreationOrder": "dependency-aware from captured SQL call references; CHECK and RLS helper dependencies verified via pg_depend"
   },
   "notRecovered": {
     "orderedHistoricalMigrationFilesMissing": 183,

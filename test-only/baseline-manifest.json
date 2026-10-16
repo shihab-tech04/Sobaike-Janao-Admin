@@ -32,7 +32,7 @@
   },
   "fixture": {
     "file": "test-only/current_contract_baseline.sql",
-    "sha256": "5fa8ca29b5d2dc2c832d7ca21683c77afc46d908d11a1426e0c351e64a3fbe72",
+    "sha256": "e9db6af3f28b325f9709869c1315d489ab5edbd2ee0c56dd1647da8735471736",
     "includesApplicationRows": false,
     "includesReporterRecords": false,
     "includesProductionSecrets": false,
@@ -50,7 +50,8 @@
       "primary and unique",
       "foreign key",
       "check"
-    ]
+    ],
+    "functionCreationOrder": "dependency-aware from captured SQL call references"
   },
   "notRecovered": {
     "orderedHistoricalMigrationFilesMissing": 183,

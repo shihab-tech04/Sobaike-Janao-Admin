@@ -21,6 +21,25 @@ jobs:
         with:
           version: 2.121.0
 
+      - name: Verify baseline manifest digest and safety markers
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+
+          manifest = json.loads(Path("test-only/baseline-manifest.json").read_text())
+          baseline = Path("test-only/current_contract_baseline.sql").read_bytes()
+          actual = hashlib.sha256(baseline).hexdigest()
+          expected = manifest["fixture"]["sha256"]
+          if actual != expected:
+              raise SystemExit(f"Baseline SHA-256 mismatch: expected {expected}, got {actual}")
+          if not manifest["notHistoricalMigrationSeries"] or not manifest["notProductionDeployable"]:
+              raise SystemExit("Refusing a fixture without its test-only/non-production safety markers")
+          if manifest["fixture"]["includesApplicationRows"] or manifest["fixture"]["includesReporterRecords"]:
+              raise SystemExit("Refusing a fixture marked as containing application or reporter rows")
+          print(f"Verified test-only baseline digest {actual} ({len(baseline)} bytes).")
+          PY
+
       - name: Start disposable local Supabase project
         working-directory: test-only/local-supabase
         run: supabase start

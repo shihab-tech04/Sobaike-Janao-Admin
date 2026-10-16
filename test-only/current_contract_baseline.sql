@@ -758,6 +758,42 @@ begin
   return v_existing_count < 6;
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.admin_notification_get_effective_permissions(p_user_id uuid)
+ RETURNS SETOF text
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    v_is_active BOOLEAN;
+    v_is_super_admin BOOLEAN;
+BEGIN
+    IF p_user_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    SELECT COALESCE(au.active, false), COALESCE(au.is_super_admin, false)
+    INTO v_is_active, v_is_super_admin
+    FROM public.admin_users au
+    WHERE au.user_id = p_user_id;
+
+    IF v_is_active IS NOT TRUE THEN
+        RETURN;
+    END IF;
+
+    IF v_is_super_admin IS TRUE THEN
+        RETURN QUERY SELECT p.id FROM public.permissions p;
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    SELECT DISTINCT rp.permission_id
+    FROM public.user_roles ur
+    JOIN public.roles r ON r.id = ur.role_id AND r.active = true
+    JOIN public.role_permissions rp ON rp.role_id = r.id
+    WHERE ur.user_id = p_user_id;
+END;
+$function$;
 CREATE OR REPLACE FUNCTION private.emit_system_health_notification(p_event_key text, p_title_en text, p_title_bn text, p_body_en text, p_body_bn text, p_incident_id uuid, p_from_status text, p_to_status text, p_snapshot_id bigint, p_dedupe_key text)
  RETURNS integer
  LANGUAGE plpgsql
@@ -843,6 +879,80 @@ begin
   get diagnostics v_count=row_count;
   return v_count;
 end;
+$function$;
+CREATE OR REPLACE FUNCTION private.public_abuse_hmac(p_material text)
+ RETURNS bytea
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'private', 'extensions'
+AS $function$
+declare
+  v_secret bytea;
+begin
+  select s.secret into v_secret
+  from private.security_runtime_secrets s
+  where s.key = 'public_abuse_hmac';
+
+  if v_secret is null then
+    raise exception 'SECURITY_CONFIGURATION_ERROR';
+  end if;
+
+  return extensions.hmac(
+    pg_catalog.convert_to(coalesce(p_material, ''), 'UTF8'),
+    v_secret,
+    'sha256'
+  );
+end;
+$function$;
+CREATE OR REPLACE FUNCTION private.public_request_ip_fingerprint()
+ RETURNS bytea
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'private'
+AS $function$
+declare
+  v_headers jsonb := '{}'::jsonb;
+  v_raw text;
+  v_ip text;
+begin
+  begin
+    v_raw := current_setting('request.headers', true);
+    if v_raw is not null and btrim(v_raw) <> '' then
+      v_headers := v_raw::jsonb;
+    end if;
+  exception when others then
+    v_headers := '{}'::jsonb;
+  end;
+
+  v_ip := nullif(
+    btrim(
+      split_part(
+        coalesce(
+          v_headers->>'x-forwarded-for',
+          v_headers->>'cf-connecting-ip',
+          v_headers->>'x-real-ip',
+          ''
+        ),
+        ',',
+        1
+      )
+    ),
+    ''
+  );
+
+  return private.public_abuse_hmac('ip:' || coalesce(v_ip, 'unavailable'));
+end;
+$function$;
+CREATE OR REPLACE FUNCTION private.public_subject_fingerprint(p_subject text)
+ RETURNS bytea
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'private'
+AS $function$
+  select case
+    when nullif(btrim(coalesce(p_subject, '')), '') is null then null
+    else private.public_abuse_hmac('subject:' || btrim(p_subject))
+  end;
 $function$;
 CREATE OR REPLACE FUNCTION private.enforce_public_rate_limit(p_action text, p_subject text, p_ip_limit integer, p_subject_limit integer, p_window interval)
  RETURNS void
@@ -1169,80 +1279,6 @@ AS $function$
       and c.status = 'published'
   );
 $function$;
-CREATE OR REPLACE FUNCTION private.public_abuse_hmac(p_material text)
- RETURNS bytea
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'private', 'extensions'
-AS $function$
-declare
-  v_secret bytea;
-begin
-  select s.secret into v_secret
-  from private.security_runtime_secrets s
-  where s.key = 'public_abuse_hmac';
-
-  if v_secret is null then
-    raise exception 'SECURITY_CONFIGURATION_ERROR';
-  end if;
-
-  return extensions.hmac(
-    pg_catalog.convert_to(coalesce(p_material, ''), 'UTF8'),
-    v_secret,
-    'sha256'
-  );
-end;
-$function$;
-CREATE OR REPLACE FUNCTION private.public_request_ip_fingerprint()
- RETURNS bytea
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'private'
-AS $function$
-declare
-  v_headers jsonb := '{}'::jsonb;
-  v_raw text;
-  v_ip text;
-begin
-  begin
-    v_raw := current_setting('request.headers', true);
-    if v_raw is not null and btrim(v_raw) <> '' then
-      v_headers := v_raw::jsonb;
-    end if;
-  exception when others then
-    v_headers := '{}'::jsonb;
-  end;
-
-  v_ip := nullif(
-    btrim(
-      split_part(
-        coalesce(
-          v_headers->>'x-forwarded-for',
-          v_headers->>'cf-connecting-ip',
-          v_headers->>'x-real-ip',
-          ''
-        ),
-        ',',
-        1
-      )
-    ),
-    ''
-  );
-
-  return private.public_abuse_hmac('ip:' || coalesce(v_ip, 'unavailable'));
-end;
-$function$;
-CREATE OR REPLACE FUNCTION private.public_subject_fingerprint(p_subject text)
- RETURNS bytea
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'private'
-AS $function$
-  select case
-    when nullif(btrim(coalesce(p_subject, '')), '') is null then null
-    else private.public_abuse_hmac('subject:' || btrim(p_subject))
-  end;
-$function$;
 CREATE OR REPLACE FUNCTION private.scrub_reporter_context_after_moderation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1349,6 +1385,90 @@ begin
   );
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.has_permission(p_permission_id text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+    v_is_super_admin boolean;
+    v_perm_exists boolean;
+    v_requires_aal2 boolean;
+begin
+    if not private.is_current_auth_session_valid() then
+        return false;
+    end if;
+
+    v_requires_aal2 := p_permission_id = any(array[
+        'admin_users.manage',
+        'banners.manage',
+        'categories.manage',
+        'complaints.evidence_view',
+        'complaints.export',
+        'complaints.publish',
+        'complaints.reject',
+        'complaints.unpublish',
+        'location_activity.view',
+        'responses.publish',
+        'responses.reject',
+        'responses.resubmit',
+        'responses.unpublish',
+        'roles.manage'
+    ]::text[]);
+
+    if v_requires_aal2
+       and coalesce(auth.jwt()->>'aal','aal1') <> 'aal2' then
+        return false;
+    end if;
+
+    select coalesce(is_super_admin, false)
+    into v_is_super_admin
+    from public.admin_users
+    where user_id = auth.uid()
+      and active = true;
+
+    if v_is_super_admin is true then
+        select exists (
+            select 1
+            from public.permissions
+            where id = p_permission_id
+        )
+        into v_perm_exists;
+
+        return v_perm_exists;
+    end if;
+
+    return exists (
+        select 1
+        from public.admin_users au
+        join public.user_roles ur
+          on ur.user_id = au.user_id
+        join public.roles r
+          on r.id = ur.role_id
+        join public.role_permissions rp
+          on rp.role_id = r.id
+        where au.user_id = auth.uid()
+          and au.active = true
+          and r.active = true
+          and rp.permission_id = p_permission_id
+    );
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.is_active_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+  select private.is_current_auth_session_valid()
+     and exists (
+       select 1
+       from public.admin_users
+       where user_id = auth.uid()
+         and active = true
+     );
+$function$;
 CREATE OR REPLACE FUNCTION public.admin_begin_news_intake_run()
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1425,6 +1545,14 @@ begin
   );
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.source_hostname(p_url text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  select lower(substring(btrim(coalesce(p_url,'')) from '^https://([^/:?#]+)'));
+$function$;
 CREATE OR REPLACE FUNCTION public.admin_check_news_source_domain(p_url text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1459,6 +1587,21 @@ begin
     'publisherName',v_source.publisher_name
   );
 end;
+$function$;
+CREATE OR REPLACE FUNCTION public.normalize_source_url(p_url text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  select nullif(
+    regexp_replace(
+      regexp_replace(btrim(coalesce(p_url, '')), '#.*$', ''),
+      '/$',
+      ''
+    ),
+    ''
+  );
 $function$;
 CREATE OR REPLACE FUNCTION public.admin_check_source_duplicate(p_canonical_url text)
  RETURNS jsonb
@@ -1511,6 +1654,353 @@ begin
     )
   );
 end;
+$function$;
+CREATE OR REPLACE FUNCTION public.normalize_duplicate_text(p_value text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  select btrim(
+    regexp_replace(
+      regexp_replace(lower(coalesce(p_value, '')), '[[:punct:]]+', ' ', 'g'),
+      '[[:space:]]+',
+      ' ',
+      'g'
+    )
+  );
+$function$;
+CREATE OR REPLACE FUNCTION public.duplicate_report_signature_values(p_segment_id text, p_subcategory_id text, p_title text, p_title_en text, p_incident_date date, p_district text, p_upazila_or_thana text, p_area text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+  select encode(
+    extensions.digest(
+      concat_ws(
+        '|',
+        public.normalize_duplicate_text(p_segment_id),
+        public.normalize_duplicate_text(p_subcategory_id),
+        public.normalize_duplicate_text(p_title),
+        public.normalize_duplicate_text(p_title_en),
+        coalesce(p_incident_date::text, ''),
+        public.normalize_duplicate_text(p_district),
+        public.normalize_duplicate_text(p_upazila_or_thana),
+        public.normalize_duplicate_text(p_area)
+      ),
+      'sha256'
+    ),
+    'hex'
+  );
+$function$;
+CREATE OR REPLACE FUNCTION public.duplicate_token_similarity(p_left text, p_right text)
+ RETURNS numeric
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  with
+  left_tokens as (
+    select distinct token
+    from regexp_split_to_table(public.normalize_duplicate_text(p_left), '[[:space:]]+') as token
+    where char_length(token) >= 2
+  ),
+  right_tokens as (
+    select distinct token
+    from regexp_split_to_table(public.normalize_duplicate_text(p_right), '[[:space:]]+') as token
+    where char_length(token) >= 2
+  ),
+  counts as (
+    select
+      (select count(*) from left_tokens) as left_count,
+      (select count(*) from right_tokens) as right_count,
+      (
+        select count(*)
+        from left_tokens l
+        join right_tokens r using (token)
+      ) as shared_count
+  )
+  select case
+    when left_count = 0 or right_count = 0 then 0::numeric
+    else round((2.0 * shared_count / (left_count + right_count))::numeric, 4)
+  end
+  from counts;
+$function$;
+CREATE OR REPLACE FUNCTION public.evaluate_sourced_report_duplicate_internal(p_complaint_id text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare
+  v_target public.complaints%rowtype;
+  v_target_signature text;
+  v_exact_sources jsonb := '[]'::jsonb;
+  v_candidates jsonb := '[]'::jsonb;
+  v_candidate_count integer := 0;
+  v_match_count integer := 0;
+  v_review_count integer := 0;
+  v_status text := 'clear';
+begin
+  select *
+  into v_target
+  from public.complaints
+  where id = p_complaint_id;
+
+  if v_target.id is null then
+    raise exception 'Complaint with ID % not found', p_complaint_id using errcode='P0002';
+  end if;
+
+  if v_target.origin_type <> 'sourced_report' then
+    return jsonb_build_object(
+      'applicable', false,
+      'status', 'clear',
+      'requiresReview', false,
+      'candidateCount', 0,
+      'exactSourceDuplicates', '[]'::jsonb,
+      'candidates', '[]'::jsonb
+    );
+  end if;
+
+  v_target_signature := public.duplicate_report_signature_values(
+    v_target.segment_id,
+    v_target.subcategory_id,
+    v_target.title,
+    v_target.title_en,
+    v_target.incident_date,
+    v_target.district,
+    v_target.upazila_or_thana,
+    v_target.area
+  );
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'complaintId', other_c.id,
+        'status', other_c.status,
+        'titleBn', other_c.title,
+        'titleEn', other_c.title_en,
+        'publisherName', other_s.publisher_name,
+        'sourceTitle', other_s.source_title,
+        'canonicalUrl', other_s.canonical_url
+      )
+      order by other_c.created_at desc, other_c.id
+    ),
+    '[]'::jsonb
+  )
+  into v_exact_sources
+  from public.complaint_sources target_s
+  join public.complaint_sources other_s
+    on public.normalize_source_url(other_s.canonical_url) =
+       public.normalize_source_url(target_s.canonical_url)
+   and other_s.complaint_id <> target_s.complaint_id
+  join public.complaints other_c on other_c.id = other_s.complaint_id
+  where target_s.complaint_id = v_target.id
+    and other_c.status <> 'rejected';
+
+  with candidate_base as (
+    select
+      c.*,
+      public.duplicate_report_signature_values(
+        c.segment_id,
+        c.subcategory_id,
+        c.title,
+        c.title_en,
+        c.incident_date,
+        c.district,
+        c.upazila_or_thana,
+        c.area
+      ) as candidate_signature,
+      greatest(
+        public.duplicate_token_similarity(v_target.title, c.title),
+        public.duplicate_token_similarity(v_target.title, c.title_en),
+        public.duplicate_token_similarity(v_target.title_en, c.title),
+        public.duplicate_token_similarity(v_target.title_en, c.title_en)
+      ) as title_similarity,
+      v_target.subcategory_id = c.subcategory_id as same_subcategory,
+      v_target.incident_date = c.incident_date as same_date,
+      abs(v_target.incident_date - c.incident_date) as date_delta,
+      public.normalize_duplicate_text(v_target.district) <> ''
+        and public.normalize_duplicate_text(v_target.district) =
+            public.normalize_duplicate_text(c.district) as same_district,
+      public.normalize_duplicate_text(v_target.upazila_or_thana) <> ''
+        and public.normalize_duplicate_text(v_target.upazila_or_thana) =
+            public.normalize_duplicate_text(c.upazila_or_thana) as same_upazila,
+      public.normalize_duplicate_text(v_target.area) <> ''
+        and public.normalize_duplicate_text(v_target.area) =
+            public.normalize_duplicate_text(c.area) as same_area,
+      (
+        public.normalize_duplicate_text(v_target.title) <> ''
+        and (
+          public.normalize_duplicate_text(v_target.title) = public.normalize_duplicate_text(c.title)
+          or public.normalize_duplicate_text(v_target.title) = public.normalize_duplicate_text(c.title_en)
+        )
+      ) or (
+        public.normalize_duplicate_text(v_target.title_en) <> ''
+        and (
+          public.normalize_duplicate_text(v_target.title_en) = public.normalize_duplicate_text(c.title)
+          or public.normalize_duplicate_text(v_target.title_en) = public.normalize_duplicate_text(c.title_en)
+        )
+      ) as exact_title
+    from public.complaints c
+    where c.id <> v_target.id
+      and c.origin_type = 'sourced_report'
+      and c.status in ('submitted', 'published', 'unpublished', 'edited')
+      and c.segment_id = v_target.segment_id
+      and (
+        abs(v_target.incident_date - c.incident_date) <= 3
+        or greatest(
+          public.duplicate_token_similarity(v_target.title, c.title),
+          public.duplicate_token_similarity(v_target.title, c.title_en),
+          public.duplicate_token_similarity(v_target.title_en, c.title),
+          public.duplicate_token_similarity(v_target.title_en, c.title_en)
+        ) >= 0.50
+      )
+  ),
+  without_valid_override as (
+    select b.*
+    from candidate_base b
+    left join public.report_duplicate_overrides o
+      on o.report_a_id = least(v_target.id, b.id)
+     and o.report_b_id = greatest(v_target.id, b.id)
+     and o.report_a_signature = case
+       when v_target.id < b.id then v_target_signature else b.candidate_signature
+     end
+     and o.report_b_signature = case
+       when v_target.id < b.id then b.candidate_signature else v_target_signature
+     end
+    where o.report_a_id is null
+  ),
+  scored as (
+    select
+      b.*,
+      least(
+        100,
+          (case when same_subcategory then 25 else 0 end)
+        + (case when same_date then 25 when date_delta = 1 then 15 when date_delta <= 3 then 5 else 0 end)
+        + (case when same_district then 10 else 0 end)
+        + (case when same_upazila then 15 else 0 end)
+        + (case when same_area then 15 else 0 end)
+        + (case when exact_title then 30 else round(title_similarity * 30)::integer end)
+      ) as score
+    from without_valid_override b
+  ),
+  classified as (
+    select
+      s.*,
+      case
+        when exact_title and same_subcategory and date_delta <= 1 then 'match'
+        when score >= 75 and title_similarity >= 0.35 and (same_upazila or same_area) then 'match'
+        when score >= 55 and (title_similarity >= 0.20 or same_area) then 'review'
+        else 'clear'
+      end as match_level
+    from scored s
+  ),
+  flagged as (
+    select *
+    from classified
+    where match_level in ('match', 'review')
+  ),
+  ranked as (
+    select *
+    from flagged
+    order by
+      case match_level when 'match' then 0 else 1 end,
+      score desc,
+      created_at desc,
+      id
+    limit 5
+  )
+  select
+    coalesce(jsonb_agg(
+      jsonb_build_object(
+        'complaintId', r.id,
+        'status', r.status,
+        'titleBn', r.title,
+        'titleEn', r.title_en,
+        'segmentId', r.segment_id,
+        'subcategoryId', r.subcategory_id,
+        'incidentDate', to_char(r.incident_date, 'YYYY-MM-DD'),
+        'district', r.district,
+        'upazilaOrThana', r.upazila_or_thana,
+        'area', r.area,
+        'score', r.score,
+        'titleSimilarity', r.title_similarity,
+        'matchLevel', r.match_level,
+        'reasons', to_jsonb(array_remove(array[
+          case when r.same_subcategory then 'same_subcategory' end,
+          case when r.same_date then 'same_incident_date' end,
+          case when r.same_district then 'same_district' end,
+          case when r.same_upazila then 'same_upazila_or_thana' end,
+          case when r.same_area then 'same_area' end,
+          case when r.exact_title then 'same_normalized_title' end,
+          case when r.title_similarity >= 0.50 then 'strong_title_overlap'
+               when r.title_similarity >= 0.20 then 'title_overlap' end
+        ]::text[], null)),
+        'sources', (
+          select coalesce(jsonb_agg(
+            jsonb_build_object(
+              'publisherName', cs.publisher_name,
+              'sourceTitle', cs.source_title,
+              'canonicalUrl', cs.canonical_url,
+              'sourcePublishedDate', to_char(cs.source_published_date, 'YYYY-MM-DD')
+            )
+            order by cs.created_at
+          ), '[]'::jsonb)
+          from public.complaint_sources cs
+          where cs.complaint_id = r.id
+        )
+      )
+      order by
+        case r.match_level when 'match' then 0 else 1 end,
+        r.score desc,
+        r.created_at desc,
+        r.id
+    ), '[]'::jsonb),
+    count(*)::integer,
+    count(*) filter (where match_level = 'match')::integer,
+    count(*) filter (where match_level = 'review')::integer
+  into v_candidates, v_candidate_count, v_match_count, v_review_count
+  from ranked r;
+
+  if jsonb_array_length(v_exact_sources) > 0 then
+    v_status := 'exact';
+  elsif v_match_count > 0 then
+    v_status := 'match';
+  elsif v_review_count > 0 then
+    v_status := 'review';
+  else
+    v_status := 'clear';
+  end if;
+
+  return jsonb_build_object(
+    'applicable', true,
+    'status', v_status,
+    'requiresReview', v_status <> 'clear',
+    'candidateCount', v_candidate_count,
+    'matchCount', v_match_count,
+    'reviewCount', v_review_count,
+    'exactSourceDuplicates', v_exact_sources,
+    'candidates', v_candidates
+  );
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.news_intake_privacy_review_required(p_subcategory_id text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select coalesce(p_subcategory_id,'') = any (array[
+    'child_abduction_murder',
+    'ride_sharing_safety',
+    'rape-sexual-violence',
+    'sexual-harassment',
+    'domestic-violence',
+    'blackmail-coercion',
+    'honeytrap'
+  ]::text[]);
 $function$;
 CREATE OR REPLACE FUNCTION public.admin_complete_news_intake_item_review(p_item_id uuid, p_report_id text)
  RETURNS jsonb
@@ -1601,6 +2091,655 @@ begin
     'action',v_action,
     'duplicateStatus',v_duplicate_status,
     'ready',v_action='created_draft' and v_report.status='submitted' and not v_review_required
+  );
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.evaluate_sourced_report_candidate_internal(p_payload jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_report jsonb:=coalesce(p_payload->'report','{}'::jsonb);
+  v_source jsonb:=coalesce(p_payload->'source','{}'::jsonb);
+  v_segment text:=nullif(btrim(v_report->>'segmentId'),'');
+  v_subcategory text:=nullif(btrim(v_report->>'subcategoryId'),'');
+  v_title text:=nullif(btrim(v_report->>'titleBn'),'');
+  v_title_en text:=nullif(btrim(v_report->>'titleEn'),'');
+  v_incident_date date;
+  v_district text:=nullif(btrim(v_report->>'district'),'');
+  v_upazila text:=nullif(btrim(v_report->>'upazilaOrThana'),'');
+  v_area text:=nullif(btrim(v_report->>'area'),'');
+  v_url text:=nullif(btrim(v_source->>'canonicalUrl'),'');
+  v_exact jsonb:='[]'::jsonb;
+  v_candidates jsonb:='[]'::jsonb;
+  v_candidate_count integer:=0;
+  v_match_count integer:=0;
+  v_review_count integer:=0;
+  v_status text:='clear';
+begin
+  begin
+    v_incident_date:=(v_report->>'incidentDate')::date;
+  exception when others then
+    raise exception 'A valid incident date is required.' using errcode='22023';
+  end;
+
+  if v_segment is null or v_subcategory is null or coalesce(v_title,v_title_en) is null
+     or v_district is null then
+    raise exception 'Category, subcategory, title, incident date, and district are required for duplicate preview.'
+      using errcode='22023';
+  end if;
+
+  if v_url is not null then
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'complaintId',c.id,
+      'status',c.status,
+      'titleBn',c.title,
+      'titleEn',c.title_en,
+      'publisherName',s.publisher_name,
+      'sourceTitle',s.source_title,
+      'canonicalUrl',s.canonical_url
+    ) order by case when c.status='published' then 0 else 1 end,c.created_at desc),'[]'::jsonb)
+    into v_exact
+    from public.complaint_sources s
+    join public.complaints c on c.id=s.complaint_id
+    where public.normalize_source_url(s.canonical_url)=public.normalize_source_url(v_url);
+  end if;
+
+  with candidate_base as (
+    select
+      c.*,
+      greatest(
+        public.duplicate_token_similarity(v_title,c.title),
+        public.duplicate_token_similarity(v_title,c.title_en),
+        public.duplicate_token_similarity(v_title_en,c.title),
+        public.duplicate_token_similarity(v_title_en,c.title_en)
+      ) title_similarity,
+      v_subcategory=c.subcategory_id same_subcategory,
+      v_incident_date=c.incident_date same_date,
+      abs(v_incident_date-c.incident_date) date_delta,
+      public.normalize_duplicate_text(v_district)<>'' and
+        public.normalize_duplicate_text(v_district)=public.normalize_duplicate_text(c.district) same_district,
+      public.normalize_duplicate_text(v_upazila)<>'' and
+        public.normalize_duplicate_text(v_upazila)=public.normalize_duplicate_text(c.upazila_or_thana) same_upazila,
+      public.normalize_duplicate_text(v_area)<>'' and
+        public.normalize_duplicate_text(v_area)=public.normalize_duplicate_text(c.area) same_area,
+      (
+        public.normalize_duplicate_text(v_title)<>'' and (
+          public.normalize_duplicate_text(v_title)=public.normalize_duplicate_text(c.title)
+          or public.normalize_duplicate_text(v_title)=public.normalize_duplicate_text(c.title_en)
+        )
+      ) or (
+        public.normalize_duplicate_text(v_title_en)<>'' and (
+          public.normalize_duplicate_text(v_title_en)=public.normalize_duplicate_text(c.title)
+          or public.normalize_duplicate_text(v_title_en)=public.normalize_duplicate_text(c.title_en)
+        )
+      ) exact_title
+    from public.complaints c
+    where c.origin_type='sourced_report'
+      and c.status in ('submitted','published','unpublished','edited')
+      and c.segment_id=v_segment
+      and (
+        abs(v_incident_date-c.incident_date)<=3
+        or greatest(
+          public.duplicate_token_similarity(v_title,c.title),
+          public.duplicate_token_similarity(v_title,c.title_en),
+          public.duplicate_token_similarity(v_title_en,c.title),
+          public.duplicate_token_similarity(v_title_en,c.title_en)
+        )>=0.50
+      )
+  ),
+  scored as (
+    select *,
+      least(100,
+        (case when same_subcategory then 25 else 0 end)
+        +(case when same_date then 25 when date_delta=1 then 15 when date_delta<=3 then 5 else 0 end)
+        +(case when same_district then 10 else 0 end)
+        +(case when same_upazila then 15 else 0 end)
+        +(case when same_area then 15 else 0 end)
+        +(case when exact_title then 30 else round(title_similarity*30)::integer end)
+      ) score
+    from candidate_base
+  ),
+  classified as (
+    select *,
+      case
+        when exact_title and same_subcategory and date_delta<=1 then 'match'
+        when score>=75 and title_similarity>=0.35 and (same_upazila or same_area) then 'match'
+        when score>=55 and (title_similarity>=0.20 or same_area) then 'review'
+        else 'clear'
+      end match_level
+    from scored
+  ),
+  ranked as (
+    select * from classified
+    where match_level in ('match','review')
+    order by case match_level when 'match' then 0 else 1 end,score desc,created_at desc,id
+    limit 5
+  )
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'complaintId',r.id,
+      'status',r.status,
+      'titleBn',r.title,
+      'titleEn',r.title_en,
+      'segmentId',r.segment_id,
+      'subcategoryId',r.subcategory_id,
+      'incidentDate',to_char(r.incident_date,'YYYY-MM-DD'),
+      'district',r.district,
+      'upazilaOrThana',r.upazila_or_thana,
+      'area',r.area,
+      'score',r.score,
+      'titleSimilarity',r.title_similarity,
+      'matchLevel',r.match_level,
+      'reasons',to_jsonb(array_remove(array[
+        case when r.same_subcategory then 'same_subcategory' end,
+        case when r.same_date then 'same_incident_date' end,
+        case when r.same_district then 'same_district' end,
+        case when r.same_upazila then 'same_upazila_or_thana' end,
+        case when r.same_area then 'same_area' end,
+        case when r.exact_title then 'same_normalized_title' end,
+        case when r.title_similarity>=0.50 then 'strong_title_overlap'
+             when r.title_similarity>=0.20 then 'title_overlap' end
+      ]::text[],null)),
+      'sources',(
+        select coalesce(jsonb_agg(jsonb_build_object(
+          'publisherName',cs.publisher_name,
+          'sourceTitle',cs.source_title,
+          'canonicalUrl',cs.canonical_url,
+          'sourcePublishedDate',to_char(cs.source_published_date,'YYYY-MM-DD')
+        ) order by cs.created_at),'[]'::jsonb)
+        from public.complaint_sources cs where cs.complaint_id=r.id
+      )
+    ) order by case r.match_level when 'match' then 0 else 1 end,r.score desc,r.created_at desc),'[]'::jsonb),
+    count(*)::integer,
+    count(*) filter(where match_level='match')::integer,
+    count(*) filter(where match_level='review')::integer
+  into v_candidates,v_candidate_count,v_match_count,v_review_count
+  from ranked r;
+
+  if jsonb_array_length(v_exact)>0 then v_status:='exact';
+  elsif v_match_count>0 then v_status:='match';
+  elsif v_review_count>0 then v_status:='review';
+  end if;
+
+  return jsonb_build_object(
+    'applicable',true,
+    'status',v_status,
+    'requiresReview',v_status<>'clear',
+    'candidateCount',v_candidate_count,
+    'matchCount',v_match_count,
+    'reviewCount',v_review_count,
+    'exactSourceDuplicates',v_exact,
+    'candidates',v_candidates
+  );
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.canonical_district_name(p_value text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select d.name_en
+  from public.bangladesh_districts d
+  where lower(btrim(coalesce(p_value,''))) in (lower(d.id),lower(d.name_en),lower(d.name_bn))
+     or exists(select 1 from unnest(d.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
+  limit 1
+$function$;
+CREATE OR REPLACE FUNCTION public.canonical_division_name(p_value text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select d.name_en
+  from public.bangladesh_divisions d
+  where lower(btrim(coalesce(p_value,''))) in (lower(d.id),lower(d.name_en),lower(d.name_bn))
+     or exists(select 1 from unnest(d.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
+  limit 1
+$function$;
+CREATE OR REPLACE FUNCTION public.canonical_district_id(p_value text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select d.id
+  from public.bangladesh_districts d
+  where lower(btrim(coalesce(p_value,''))) in (lower(d.id),lower(d.name_en),lower(d.name_bn))
+     or exists(select 1 from unnest(d.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
+  limit 1
+$function$;
+CREATE OR REPLACE FUNCTION public.canonical_upazila_name(p_value text, p_district text DEFAULT NULL::text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select u.name_en
+  from public.bangladesh_upazilas u
+  join public.bangladesh_districts d on d.id=u.district_id
+  where (
+    lower(btrim(coalesce(p_value,''))) in (lower(u.id),lower(u.name_en),lower(u.name_bn))
+    or exists(select 1 from unnest(u.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
+  )
+  and (
+    nullif(btrim(coalesce(p_district,'')),'') is null
+    or d.id=public.canonical_district_id(p_district)
+  )
+  order by case when d.id=public.canonical_district_id(p_district) then 0 else 1 end,u.id
+  limit 1
+$function$;
+CREATE OR REPLACE FUNCTION public.sourced_report_missing_required_fields_internal(p_subcategory_id text, p_report jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_schema_id uuid;
+  v_field record;
+  v_value jsonb;
+  v_missing jsonb:='[]'::jsonb;
+  v_storage_key text;
+  v_field_key text;
+  v_division text:=nullif(btrim(p_report->>'division'),'');
+  v_district text:=nullif(btrim(p_report->>'district'),'');
+  v_upazila text:=nullif(btrim(p_report->>'upazilaOrThana'),'');
+  v_scope text:=coalesce(nullif(btrim(p_report->'customFieldAnswers'->>'locationScope'),''),'specific');
+  v_has_specific boolean:=false;
+begin
+  select r.id into v_schema_id
+  from public.reporting_form_schemas r
+  where r.scope_type='subcategory'
+    and r.scope_id=p_subcategory_id
+    and r.status='published'
+    and r.engine_mode='schema'
+  order by r.version desc
+  limit 1;
+
+  if v_schema_id is not null then
+    for v_field in
+      select f.field_key,f.storage_key,f.storage_mode,f.label_en,f.label_bn
+      from public.reporting_form_schema_fields f
+      where f.schema_id=v_schema_id and f.active=true and f.required=true
+      order by f.sort_order,f.id
+    loop
+      v_storage_key:=coalesce(nullif(btrim(v_field.storage_key),''),v_field.field_key);
+      v_field_key:=v_field.field_key;
+      v_value:=null;
+      if v_field_key='title' or v_storage_key='title' then
+        v_value:=to_jsonb(coalesce(nullif(btrim(p_report->>'titleBn'),''),nullif(btrim(p_report->>'titleEn'),'')));
+      elsif v_field_key='description' or v_storage_key='description' then
+        v_value:=to_jsonb(coalesce(nullif(btrim(p_report->>'descriptionBn'),''),nullif(btrim(p_report->>'descriptionEn'),'')));
+      elsif v_field_key='location' or v_storage_key='location' or (v_field.storage_mode='system_block' and v_field.field_key='location') then
+        if v_division is not null and v_district is not null then v_value:='true'::jsonb; end if;
+      elsif v_field_key='mob_justice_details' or v_storage_key='mobJusticeDetails' then
+        if jsonb_typeof(p_report->'mobJusticeDetails')='object' and p_report->'mobJusticeDetails'<>'{}'::jsonb then
+          v_value:=p_report->'mobJusticeDetails';
+        end if;
+      else
+        v_value:=coalesce(p_report->v_storage_key,p_report->v_field_key,p_report->'customFieldAnswers'->v_storage_key,p_report->'customFieldAnswers'->v_field_key);
+      end if;
+      if v_value is null
+         or v_value='null'::jsonb
+         or (jsonb_typeof(v_value)='string' and btrim(v_value#>>'{}')='')
+         or (jsonb_typeof(v_value)='array' and jsonb_array_length(v_value)=0)
+         or (jsonb_typeof(v_value)='object' and v_value='{}'::jsonb) then
+        v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
+          'fieldKey',v_field_key,'storageKey',v_storage_key,'labelEn',v_field.label_en,'labelBn',v_field.label_bn
+        ));
+      end if;
+    end loop;
+  end if;
+
+  if v_division is null or public.canonical_division_name(v_division) is null
+     or v_district is null or public.canonical_district_name(v_district) is null then
+    v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
+      'fieldKey','canonicalLocation','storageKey','location',
+      'labelEn','Valid division and district','labelBn','সঠিক বিভাগ ও জেলা'
+    ));
+  end if;
+
+  if v_upazila is not null and public.canonical_upazila_name(v_upazila,v_district) is null then
+    v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
+      'fieldKey','canonicalUpazila','storageKey','upazilaOrThana',
+      'labelEn','Valid upazila / thana','labelBn','সঠিক উপজেলা / থানা'
+    ));
+  end if;
+
+  v_has_specific :=
+    v_upazila is not null
+    or nullif(btrim(p_report->>'area'),'') is not null
+    or nullif(btrim(p_report->>'road'),'') is not null
+    or nullif(btrim(p_report->>'landmark'),'') is not null
+    or (
+      nullif(btrim(p_report->>'formattedAddress'),'') is not null
+      and lower(btrim(p_report->>'formattedAddress')) <> lower(btrim(coalesce(v_district,'')))
+    );
+
+  if not v_has_specific and v_scope <> 'district_wide' then
+    v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
+      'fieldKey','locationSpecificity','storageKey','location',
+      'labelEn','Specific incident location or explicit district-wide scope',
+      'labelBn','নির্দিষ্ট ঘটনার স্থান বা জেলা-ব্যাপী স্কোপ'
+    ));
+  end if;
+
+  return v_missing;
+end
+$function$;
+CREATE OR REPLACE FUNCTION public.sourced_report_schema_validation_errors_internal(p_subcategory_id text, p_report jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_schema_id uuid;
+  v_field record;
+  v_value jsonb;
+  v_text text;
+  v_storage_key text;
+  v_errors jsonb:=public.sourced_report_missing_required_fields_internal(p_subcategory_id,p_report);
+  v_numeric numeric;
+  v_min numeric;
+  v_max numeric;
+  v_min_length integer;
+  v_max_length integer;
+begin
+  select r.id into v_schema_id
+  from public.reporting_form_schemas r
+  where r.scope_type='subcategory'
+    and r.scope_id=p_subcategory_id
+    and r.status='published'
+    and r.engine_mode='schema'
+  order by r.version desc
+  limit 1;
+
+  if v_schema_id is null then
+    return v_errors;
+  end if;
+
+  for v_field in
+    select
+      f.field_key,f.field_type,f.storage_mode,f.storage_key,
+      f.label_en,f.label_bn,f.required,
+      coalesce(f.validation,'{}'::jsonb) as validation,
+      coalesce(f.options,'[]'::jsonb) as options
+    from public.reporting_form_schema_fields f
+    where f.schema_id=v_schema_id and f.active=true
+    order by f.sort_order,f.id
+  loop
+    v_storage_key:=coalesce(nullif(btrim(v_field.storage_key),''),v_field.field_key);
+    v_value:=null;
+
+    if v_field.field_key='title' or v_storage_key='title' then
+      v_value:=to_jsonb(coalesce(
+        nullif(btrim(p_report->>'titleBn'),''),
+        nullif(btrim(p_report->>'titleEn'),'')
+      ));
+    elsif v_field.field_key='description' or v_storage_key='description' then
+      v_value:=to_jsonb(coalesce(
+        nullif(btrim(p_report->>'descriptionBn'),''),
+        nullif(btrim(p_report->>'descriptionEn'),'')
+      ));
+    elsif v_field.field_key='location' or v_storage_key='location' then
+      if nullif(btrim(p_report->>'division'),'') is not null
+         and nullif(btrim(p_report->>'district'),'') is not null then
+        v_value:='true'::jsonb;
+      end if;
+    elsif v_field.field_key='mob_justice_details' or v_storage_key='mobJusticeDetails' then
+      if jsonb_typeof(p_report->'mobJusticeDetails')='object'
+         and p_report->'mobJusticeDetails'<>'{}'::jsonb then
+        v_value:=p_report->'mobJusticeDetails';
+      end if;
+    else
+      v_value:=coalesce(
+        p_report -> v_storage_key,
+        p_report -> v_field.field_key,
+        p_report->'customFieldAnswers' -> v_storage_key,
+        p_report->'customFieldAnswers' -> v_field.field_key
+      );
+    end if;
+
+    if v_value is null
+       or v_value='null'::jsonb
+       or (jsonb_typeof(v_value)='string' and btrim(v_value#>>'{}')='')
+       or (jsonb_typeof(v_value)='array' and jsonb_array_length(v_value)=0)
+       or (jsonb_typeof(v_value)='object' and v_value='{}'::jsonb) then
+      continue;
+    end if;
+
+    v_text:=case when jsonb_typeof(v_value)='string' then v_value#>>'{}' else v_value::text end;
+
+    if v_field.field_type='checkbox' and v_field.required=true
+       and lower(coalesce(v_text,''))<>'true' then
+      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','required_true'
+      ));
+      continue;
+    end if;
+
+    if v_field.field_type in ('select','radio') then
+      if not exists(
+        select 1 from jsonb_array_elements(v_field.options) opt
+        where opt->>'value'=v_text
+      ) then
+        v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+          'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+          'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_option'
+        ));
+        continue;
+      end if;
+    elsif v_field.field_type='multiselect' then
+      if jsonb_typeof(v_value)<>'array'
+         or exists(
+           select 1
+           from jsonb_array_elements_text(
+             case when jsonb_typeof(v_value)='array' then v_value else '[]'::jsonb end
+           ) selected(value)
+           where not exists(
+             select 1 from jsonb_array_elements(v_field.options) opt
+             where opt->>'value'=selected.value
+           )
+         ) then
+        v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+          'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+          'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_option'
+        ));
+        continue;
+      end if;
+    end if;
+
+    v_min_length:=nullif(v_field.validation->>'minLength','')::integer;
+    v_max_length:=nullif(v_field.validation->>'maxLength','')::integer;
+
+    if v_min_length is not null and char_length(v_text)<v_min_length then
+      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','min_length'
+      ));
+    end if;
+    if v_max_length is not null and char_length(v_text)>v_max_length then
+      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','max_length'
+      ));
+    end if;
+
+    if v_field.field_type in ('number','currency') then
+      begin
+        v_numeric:=v_text::numeric;
+        v_min:=nullif(v_field.validation->>'min','')::numeric;
+        v_max:=nullif(v_field.validation->>'max','')::numeric;
+        if v_min is not null and v_numeric<v_min then
+          v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+            'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+            'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','min'
+          ));
+        end if;
+        if v_max is not null and v_numeric>v_max then
+          v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+            'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+            'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','max'
+          ));
+        end if;
+      exception when others then
+        v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+          'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+          'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_number'
+        ));
+      end;
+    elsif v_field.field_type='email'
+       and v_text !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_email'
+      ));
+    elsif v_field.field_type='url'
+       and v_text !~* '^https?://[^[:space:]]+$' then
+      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_url'
+      ));
+    elsif v_field.field_type='phone'
+       and char_length(regexp_replace(v_text,'[^0-9]','','g')) not between 7 and 15 then
+      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
+        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
+        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_phone'
+      ));
+    end if;
+  end loop;
+
+  return v_errors;
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.admin_preview_sourced_report_intake(p_payload jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_source_check jsonb;
+  v_duplicate jsonb;
+  v_report jsonb:=coalesce(p_payload->'report','{}'::jsonb);
+  v_incident_date date;
+  v_subcategory text:=nullif(btrim(v_report->>'subcategoryId'),'');
+  v_district text:=nullif(btrim(v_report->>'district'),'');
+  v_safe_candidates jsonb:='[]'::jsonb;
+  v_missing_fields jsonb:='[]'::jsonb;
+  v_privacy_review_required boolean:=false;
+begin
+  if coalesce(auth.jwt()->>'role','') <> 'service_role'
+     and (not public.is_active_admin() or not public.has_permission('complaints.publish')) then
+    raise exception 'Access denied.' using errcode='42501';
+  end if;
+
+  v_source_check:=public.admin_check_news_source_domain(p_payload#>>'{source,canonicalUrl}');
+  if coalesce((v_source_check->>'approved')::boolean,false) is not true then
+    raise exception 'SOURCE_DOMAIN_NOT_APPROVED: Source domain is not in the approved news-source registry.'
+      using errcode='22023';
+  end if;
+
+  if v_subcategory is not null then
+    v_missing_fields:=public.sourced_report_schema_validation_errors_internal(
+      v_subcategory,
+      v_report
+    );
+    v_privacy_review_required:=public.news_intake_privacy_review_required(v_subcategory);
+  end if;
+
+  v_duplicate:=public.evaluate_sourced_report_candidate_internal(p_payload);
+
+  if coalesce(v_duplicate->>'status','clear')='clear'
+     and v_subcategory is not null
+     and v_district is not null then
+    begin
+      v_incident_date:=(v_report->>'incidentDate')::date;
+    exception when others then
+      v_incident_date:=null;
+    end;
+
+    if v_incident_date is not null then
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'complaintId',q.id,
+        'status',q.status,
+        'titleBn',q.title,
+        'titleEn',q.title_en,
+        'segmentId',q.segment_id,
+        'subcategoryId',q.subcategory_id,
+        'incidentDate',to_char(q.incident_date,'YYYY-MM-DD'),
+        'district',q.district,
+        'upazilaOrThana',q.upazila_or_thana,
+        'area',q.area,
+        'score',60,
+        'titleSimilarity',0,
+        'matchLevel','review',
+        'reasons',jsonb_build_array(
+          'same_subcategory',
+          'same_incident_date',
+          'same_district',
+          'cross_language_safe_review'
+        ),
+        'sources',(
+          select coalesce(jsonb_agg(jsonb_build_object(
+            'publisherName',cs.publisher_name,
+            'sourceTitle',cs.source_title,
+            'canonicalUrl',cs.canonical_url,
+            'sourcePublishedDate',to_char(cs.source_published_date,'YYYY-MM-DD')
+          ) order by cs.created_at),'[]'::jsonb)
+          from public.complaint_sources cs
+          where cs.complaint_id=q.id
+        )
+      ) order by q.created_at desc),'[]'::jsonb)
+      into v_safe_candidates
+      from (
+        select c.*
+        from public.complaints c
+        where c.origin_type='sourced_report'
+          and c.status in ('submitted','published','unpublished','edited')
+          and c.subcategory_id=v_subcategory
+          and c.incident_date=v_incident_date
+          and public.normalize_duplicate_text(c.district)=public.normalize_duplicate_text(v_district)
+        order by c.created_at desc
+        limit 5
+      ) q;
+
+      if jsonb_array_length(v_safe_candidates)>0 then
+        v_duplicate:=v_duplicate || jsonb_build_object(
+          'status','review',
+          'requiresReview',true,
+          'candidateCount',jsonb_array_length(v_safe_candidates),
+          'reviewCount',jsonb_array_length(v_safe_candidates),
+          'candidates',v_safe_candidates
+        );
+      end if;
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'sourceDomain',v_source_check,
+    'duplicate',v_duplicate,
+    'privacyReviewRequired',v_privacy_review_required,
+    'schemaValidation',jsonb_build_object(
+      'ready',jsonb_array_length(v_missing_fields)=0,
+      'missingFields',v_missing_fields
+    ),
+    'canCreateDraft',
+      jsonb_array_length(coalesce(v_duplicate->'exactSourceDuplicates','[]'::jsonb))=0
+      and jsonb_array_length(v_missing_fields)=0,
+    'canPublishImmediately',
+      coalesce(v_duplicate->>'status','clear')='clear'
+      and jsonb_array_length(v_missing_fields)=0
+      and (
+        not v_privacy_review_required
+        or lower(coalesce(v_report#>>'{customFieldAnswers,sensitiveContentReviewed}','false'))='true'
+      )
   );
 end;
 $function$;
@@ -1818,6 +2957,292 @@ exception
       using errcode='23505';
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.admin_notification_can_view_role_scope(p_recipient_user_id uuid, p_role_id text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    v_recip_active BOOLEAN;
+    v_recip_is_super_admin BOOLEAN;
+    v_role_exists BOOLEAN;
+    v_has_roles_manage BOOLEAN;
+BEGIN
+    IF p_recipient_user_id IS NULL OR p_role_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT COALESCE(active, false), COALESCE(is_super_admin, false)
+    INTO v_recip_active, v_recip_is_super_admin
+    FROM public.admin_users
+    WHERE user_id = p_recipient_user_id;
+
+    IF v_recip_active IS NOT TRUE THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT true INTO v_role_exists
+    FROM public.roles
+    WHERE id = p_role_id;
+
+    IF v_role_exists IS NOT TRUE THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_recip_is_super_admin IS TRUE THEN
+        RETURN TRUE;
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
+        WHERE p_id = 'roles.manage'
+    ) INTO v_has_roles_manage;
+
+    IF v_has_roles_manage IS NOT TRUE THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN NOT EXISTS (
+        SELECT 1
+        FROM public.role_permissions rp
+        WHERE rp.role_id = p_role_id
+          AND rp.permission_id NOT IN (
+              SELECT p_id
+              FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
+          )
+    );
+END;
+$function$;
+CREATE OR REPLACE FUNCTION public.admin_notification_can_view_user_scope(p_recipient_user_id uuid, p_target_user_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    v_recip_active BOOLEAN;
+    v_recip_is_super_admin BOOLEAN;
+    v_target_exists BOOLEAN;
+    v_target_is_super_admin BOOLEAN;
+    v_has_user_view BOOLEAN;
+    v_has_user_manage BOOLEAN;
+BEGIN
+    IF p_recipient_user_id IS NULL OR p_target_user_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT COALESCE(active, false), COALESCE(is_super_admin, false)
+    INTO v_recip_active, v_recip_is_super_admin
+    FROM public.admin_users
+    WHERE user_id = p_recipient_user_id;
+
+    IF v_recip_active IS NOT TRUE THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT true, COALESCE(is_super_admin, false)
+    INTO v_target_exists, v_target_is_super_admin
+    FROM public.admin_users
+    WHERE user_id = p_target_user_id;
+
+    IF v_target_exists IS NOT TRUE THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_recip_is_super_admin IS TRUE THEN
+        RETURN TRUE;
+    END IF;
+
+    IF v_target_is_super_admin IS TRUE THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT
+        EXISTS (
+            SELECT 1
+            FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
+            WHERE p_id = 'admin_users.view'
+        ),
+        EXISTS (
+            SELECT 1
+            FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
+            WHERE p_id = 'admin_users.manage'
+        )
+    INTO v_has_user_view, v_has_user_manage;
+
+    IF NOT (v_has_user_view OR v_has_user_manage) THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN NOT EXISTS (
+        SELECT 1
+        FROM public.user_roles ur
+        JOIN public.roles r ON r.id = ur.role_id AND r.active = true
+        JOIN public.role_permissions rp ON rp.role_id = r.id
+        WHERE ur.user_id = p_target_user_id
+          AND rp.permission_id NOT IN (
+              SELECT p_id
+              FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
+          )
+    );
+END;
+$function$;
+CREATE OR REPLACE FUNCTION public.admin_notification_resolve_recipients(p_audience_mode text DEFAULT 'permission'::text, p_required_all_permissions text[] DEFAULT '{}'::text[], p_required_any_permissions text[] DEFAULT '{}'::text[], p_target_type text DEFAULT NULL::text, p_target_id text DEFAULT NULL::text, p_personal_recipient_id uuid DEFAULT NULL::uuid, p_actor_user_id uuid DEFAULT NULL::uuid, p_exclude_actor boolean DEFAULT true, p_include_super_admin boolean DEFAULT true)
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    v_cand RECORD;
+    v_eff_perms TEXT[];
+    v_target_uuid UUID;
+    v_scope_ok BOOLEAN;
+BEGIN
+    IF p_audience_mode = 'personal' THEN
+        IF p_personal_recipient_id IS NULL THEN
+            RETURN;
+        END IF;
+
+        IF p_exclude_actor IS TRUE
+           AND p_actor_user_id IS NOT NULL
+           AND p_personal_recipient_id = p_actor_user_id
+        THEN
+            RETURN;
+        END IF;
+
+        RETURN QUERY
+        SELECT au.user_id
+        FROM public.admin_users au
+        WHERE au.user_id = p_personal_recipient_id
+          AND au.active = true;
+
+        RETURN;
+    END IF;
+
+    IF p_audience_mode = 'super_admin_only' THEN
+        RETURN QUERY
+        SELECT au.user_id
+        FROM public.admin_users au
+        WHERE au.active = true
+          AND au.is_super_admin = true
+          AND (
+              NOT p_exclude_actor
+              OR p_actor_user_id IS NULL
+              OR au.user_id <> p_actor_user_id
+          );
+
+        RETURN;
+    END IF;
+
+    IF p_audience_mode = 'permission' THEN
+        IF p_target_type IS NOT NULL
+           AND p_target_type NOT IN ('complaint', 'admin_user', 'role')
+        THEN
+            RETURN;
+        END IF;
+
+        IF p_target_type = 'admin_user' THEN
+            IF p_target_id IS NULL OR length(btrim(p_target_id)) = 0 THEN
+                RETURN;
+            END IF;
+
+            BEGIN
+                v_target_uuid := btrim(p_target_id)::UUID;
+            EXCEPTION WHEN OTHERS THEN
+                RETURN;
+            END;
+
+        ELSIF p_target_type = 'role' THEN
+            IF p_target_id IS NULL OR length(btrim(p_target_id)) = 0 THEN
+                RETURN;
+            END IF;
+        END IF;
+
+        FOR v_cand IN
+            SELECT au.user_id, au.is_super_admin
+            FROM public.admin_users au
+            WHERE au.active = true
+        LOOP
+            IF p_exclude_actor IS TRUE
+               AND p_actor_user_id IS NOT NULL
+               AND v_cand.user_id = p_actor_user_id
+            THEN
+                CONTINUE;
+            END IF;
+
+            IF v_cand.is_super_admin IS TRUE THEN
+                IF p_include_super_admin IS TRUE THEN
+                    RETURN NEXT v_cand.user_id;
+                END IF;
+
+                CONTINUE;
+            END IF;
+
+            v_eff_perms := ARRAY(
+                SELECT p_id
+                FROM public.admin_notification_get_effective_permissions(v_cand.user_id) AS p_id
+            );
+
+            IF p_required_all_permissions IS NOT NULL
+               AND cardinality(p_required_all_permissions) > 0
+            THEN
+                IF NOT (p_required_all_permissions <@ v_eff_perms) THEN
+                    CONTINUE;
+                END IF;
+            END IF;
+
+            IF p_required_any_permissions IS NOT NULL
+               AND cardinality(p_required_any_permissions) > 0
+            THEN
+                IF NOT (p_required_any_permissions && v_eff_perms) THEN
+                    CONTINUE;
+                END IF;
+            END IF;
+
+            IF p_target_type = 'admin_user' THEN
+                v_scope_ok :=
+                    public.admin_notification_can_view_user_scope(
+                        v_cand.user_id,
+                        v_target_uuid
+                    );
+
+                IF v_scope_ok IS NOT TRUE THEN
+                    CONTINUE;
+                END IF;
+
+            ELSIF p_target_type = 'role' THEN
+                v_scope_ok :=
+                    public.admin_notification_can_view_role_scope(
+                        v_cand.user_id,
+                        btrim(p_target_id)
+                    );
+
+                IF v_scope_ok IS NOT TRUE THEN
+                    CONTINUE;
+                END IF;
+
+            ELSIF p_target_type = 'complaint' THEN
+                NULL;
+
+            ELSIF p_target_type IS NULL THEN
+                NULL;
+
+            ELSE
+                CONTINUE;
+            END IF;
+
+            RETURN NEXT v_cand.user_id;
+        END LOOP;
+
+        RETURN;
+    END IF;
+
+    RETURN;
+END;
+$function$;
 CREATE OR REPLACE FUNCTION public.admin_emit_notification(p_event_key text, p_title_en text, p_title_bn text, p_body_en text DEFAULT NULL::text, p_body_bn text DEFAULT NULL::text, p_actor_user_id uuid DEFAULT auth.uid(), p_actor_display_name text DEFAULT NULL::text, p_target_type text DEFAULT NULL::text, p_target_id text DEFAULT NULL::text, p_target_label text DEFAULT NULL::text, p_metadata jsonb DEFAULT '{}'::jsonb, p_required_all_permissions text[] DEFAULT '{}'::text[], p_required_any_permissions text[] DEFAULT '{}'::text[], p_audience_mode text DEFAULT 'permission'::text, p_personal_recipient_id uuid DEFAULT NULL::uuid, p_route text DEFAULT NULL::text, p_dedupe_key text DEFAULT NULL::text, p_exclude_actor boolean DEFAULT true, p_include_super_admin boolean DEFAULT true)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1997,6 +3422,160 @@ BEGIN
         'event_group_id', v_event_group_id,
         'recipient_count', v_inserted_count
     );
+END;
+$function$;
+CREATE OR REPLACE FUNCTION public.get_caller_effective_permission_set()
+ RETURNS SETOF text
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+    v_user_id uuid;
+    v_is_active_admin boolean;
+    v_is_super_admin boolean;
+    v_bootstrap_mode boolean;
+begin
+    v_user_id := auth.uid();
+
+    if v_user_id is null
+       or not private.is_current_auth_session_valid()
+    then
+        return;
+    end if;
+
+    select (active = true)
+    into v_is_active_admin
+    from public.admin_users
+    where user_id = v_user_id;
+
+    if v_is_active_admin is not true then
+        return;
+    end if;
+
+    select coalesce(au.is_super_admin, false)
+    into v_is_super_admin
+    from public.admin_users au
+    where au.user_id = v_user_id
+      and au.active = true;
+
+    if v_is_super_admin is true then
+        return query select p.id from public.permissions p;
+        return;
+    end if;
+
+    select not exists (select 1 from public.user_roles)
+    into v_bootstrap_mode;
+
+    if v_bootstrap_mode is true then
+        return query select p.id from public.permissions p;
+        return;
+    end if;
+
+    return query
+    select distinct rp.permission_id
+    from public.user_roles ur
+    join public.roles r on r.id = ur.role_id and r.active = true
+    join public.role_permissions rp on rp.role_id = r.id
+    where ur.user_id = v_user_id;
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.can_manage_role_scope(p_role_id text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+    v_user_id uuid;
+    v_is_active_admin boolean;
+    v_is_super_admin boolean;
+    v_bootstrap_mode boolean;
+    v_role_exists boolean;
+begin
+    v_user_id := auth.uid();
+
+    if v_user_id is null
+       or not private.is_current_auth_session_valid()
+    then
+        return false;
+    end if;
+
+    select exists (
+        select 1 from public.roles where id = p_role_id
+    ) into v_role_exists;
+
+    if not v_role_exists then
+        return false;
+    end if;
+
+    select (active = true)
+    into v_is_active_admin
+    from public.admin_users
+    where user_id = v_user_id;
+
+    if v_is_active_admin is not true then
+        return false;
+    end if;
+
+    select coalesce(au.is_super_admin, false)
+    into v_is_super_admin
+    from public.admin_users au
+    where au.user_id = v_user_id
+      and au.active = true;
+
+    if v_is_super_admin is true then
+        return true;
+    end if;
+
+    select not exists (select 1 from public.user_roles)
+    into v_bootstrap_mode;
+
+    if v_bootstrap_mode is true then
+        return true;
+    end if;
+
+    return not exists (
+        select 1
+        from public.role_permissions rp
+        where rp.role_id = p_role_id
+          and rp.permission_id not in (
+              select public.get_caller_effective_permission_set()
+          )
+    );
+end;
+$function$;
+CREATE OR REPLACE FUNCTION public.log_role_audit_event(p_action text, p_target_id text, p_details jsonb DEFAULT '{}'::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    v_log_id UUID;
+BEGIN
+    INSERT INTO public.admin_audit_logs (
+        actor_id,
+        action,
+        target_type,
+        target_id,
+        details,
+        created_at
+    )
+    VALUES (
+        auth.uid(),
+        p_action,
+        CASE
+            WHEN p_action ILIKE '%USER%' THEN 'USER'
+            ELSE 'ROLE'
+        END,
+        p_target_id,
+        COALESCE(p_details, '{}'::jsonb),
+        clock_timestamp()
+    )
+    RETURNING id INTO v_log_id;
+
+    RETURN v_log_id;
 END;
 $function$;
 CREATE OR REPLACE FUNCTION public.admin_finalize_user_membership(p_user_id uuid, p_display_name text DEFAULT NULL::text, p_role_id text DEFAULT NULL::text, p_active boolean DEFAULT true)
@@ -2767,328 +4346,6 @@ begin
   );
 end;
 $function$;
-CREATE OR REPLACE FUNCTION public.admin_notification_can_view_role_scope(p_recipient_user_id uuid, p_role_id text)
- RETURNS boolean
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-    v_recip_active BOOLEAN;
-    v_recip_is_super_admin BOOLEAN;
-    v_role_exists BOOLEAN;
-    v_has_roles_manage BOOLEAN;
-BEGIN
-    IF p_recipient_user_id IS NULL OR p_role_id IS NULL THEN
-        RETURN FALSE;
-    END IF;
-
-    SELECT COALESCE(active, false), COALESCE(is_super_admin, false)
-    INTO v_recip_active, v_recip_is_super_admin
-    FROM public.admin_users
-    WHERE user_id = p_recipient_user_id;
-
-    IF v_recip_active IS NOT TRUE THEN
-        RETURN FALSE;
-    END IF;
-
-    SELECT true INTO v_role_exists
-    FROM public.roles
-    WHERE id = p_role_id;
-
-    IF v_role_exists IS NOT TRUE THEN
-        RETURN FALSE;
-    END IF;
-
-    IF v_recip_is_super_admin IS TRUE THEN
-        RETURN TRUE;
-    END IF;
-
-    SELECT EXISTS (
-        SELECT 1
-        FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
-        WHERE p_id = 'roles.manage'
-    ) INTO v_has_roles_manage;
-
-    IF v_has_roles_manage IS NOT TRUE THEN
-        RETURN FALSE;
-    END IF;
-
-    RETURN NOT EXISTS (
-        SELECT 1
-        FROM public.role_permissions rp
-        WHERE rp.role_id = p_role_id
-          AND rp.permission_id NOT IN (
-              SELECT p_id
-              FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
-          )
-    );
-END;
-$function$;
-CREATE OR REPLACE FUNCTION public.admin_notification_can_view_user_scope(p_recipient_user_id uuid, p_target_user_id uuid)
- RETURNS boolean
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-    v_recip_active BOOLEAN;
-    v_recip_is_super_admin BOOLEAN;
-    v_target_exists BOOLEAN;
-    v_target_is_super_admin BOOLEAN;
-    v_has_user_view BOOLEAN;
-    v_has_user_manage BOOLEAN;
-BEGIN
-    IF p_recipient_user_id IS NULL OR p_target_user_id IS NULL THEN
-        RETURN FALSE;
-    END IF;
-
-    SELECT COALESCE(active, false), COALESCE(is_super_admin, false)
-    INTO v_recip_active, v_recip_is_super_admin
-    FROM public.admin_users
-    WHERE user_id = p_recipient_user_id;
-
-    IF v_recip_active IS NOT TRUE THEN
-        RETURN FALSE;
-    END IF;
-
-    SELECT true, COALESCE(is_super_admin, false)
-    INTO v_target_exists, v_target_is_super_admin
-    FROM public.admin_users
-    WHERE user_id = p_target_user_id;
-
-    IF v_target_exists IS NOT TRUE THEN
-        RETURN FALSE;
-    END IF;
-
-    IF v_recip_is_super_admin IS TRUE THEN
-        RETURN TRUE;
-    END IF;
-
-    IF v_target_is_super_admin IS TRUE THEN
-        RETURN FALSE;
-    END IF;
-
-    SELECT
-        EXISTS (
-            SELECT 1
-            FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
-            WHERE p_id = 'admin_users.view'
-        ),
-        EXISTS (
-            SELECT 1
-            FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
-            WHERE p_id = 'admin_users.manage'
-        )
-    INTO v_has_user_view, v_has_user_manage;
-
-    IF NOT (v_has_user_view OR v_has_user_manage) THEN
-        RETURN FALSE;
-    END IF;
-
-    RETURN NOT EXISTS (
-        SELECT 1
-        FROM public.user_roles ur
-        JOIN public.roles r ON r.id = ur.role_id AND r.active = true
-        JOIN public.role_permissions rp ON rp.role_id = r.id
-        WHERE ur.user_id = p_target_user_id
-          AND rp.permission_id NOT IN (
-              SELECT p_id
-              FROM public.admin_notification_get_effective_permissions(p_recipient_user_id) AS p_id
-          )
-    );
-END;
-$function$;
-CREATE OR REPLACE FUNCTION public.admin_notification_get_effective_permissions(p_user_id uuid)
- RETURNS SETOF text
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-    v_is_active BOOLEAN;
-    v_is_super_admin BOOLEAN;
-BEGIN
-    IF p_user_id IS NULL THEN
-        RETURN;
-    END IF;
-
-    SELECT COALESCE(au.active, false), COALESCE(au.is_super_admin, false)
-    INTO v_is_active, v_is_super_admin
-    FROM public.admin_users au
-    WHERE au.user_id = p_user_id;
-
-    IF v_is_active IS NOT TRUE THEN
-        RETURN;
-    END IF;
-
-    IF v_is_super_admin IS TRUE THEN
-        RETURN QUERY SELECT p.id FROM public.permissions p;
-        RETURN;
-    END IF;
-
-    RETURN QUERY
-    SELECT DISTINCT rp.permission_id
-    FROM public.user_roles ur
-    JOIN public.roles r ON r.id = ur.role_id AND r.active = true
-    JOIN public.role_permissions rp ON rp.role_id = r.id
-    WHERE ur.user_id = p_user_id;
-END;
-$function$;
-CREATE OR REPLACE FUNCTION public.admin_notification_resolve_recipients(p_audience_mode text DEFAULT 'permission'::text, p_required_all_permissions text[] DEFAULT '{}'::text[], p_required_any_permissions text[] DEFAULT '{}'::text[], p_target_type text DEFAULT NULL::text, p_target_id text DEFAULT NULL::text, p_personal_recipient_id uuid DEFAULT NULL::uuid, p_actor_user_id uuid DEFAULT NULL::uuid, p_exclude_actor boolean DEFAULT true, p_include_super_admin boolean DEFAULT true)
- RETURNS SETOF uuid
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-    v_cand RECORD;
-    v_eff_perms TEXT[];
-    v_target_uuid UUID;
-    v_scope_ok BOOLEAN;
-BEGIN
-    IF p_audience_mode = 'personal' THEN
-        IF p_personal_recipient_id IS NULL THEN
-            RETURN;
-        END IF;
-
-        IF p_exclude_actor IS TRUE
-           AND p_actor_user_id IS NOT NULL
-           AND p_personal_recipient_id = p_actor_user_id
-        THEN
-            RETURN;
-        END IF;
-
-        RETURN QUERY
-        SELECT au.user_id
-        FROM public.admin_users au
-        WHERE au.user_id = p_personal_recipient_id
-          AND au.active = true;
-
-        RETURN;
-    END IF;
-
-    IF p_audience_mode = 'super_admin_only' THEN
-        RETURN QUERY
-        SELECT au.user_id
-        FROM public.admin_users au
-        WHERE au.active = true
-          AND au.is_super_admin = true
-          AND (
-              NOT p_exclude_actor
-              OR p_actor_user_id IS NULL
-              OR au.user_id <> p_actor_user_id
-          );
-
-        RETURN;
-    END IF;
-
-    IF p_audience_mode = 'permission' THEN
-        IF p_target_type IS NOT NULL
-           AND p_target_type NOT IN ('complaint', 'admin_user', 'role')
-        THEN
-            RETURN;
-        END IF;
-
-        IF p_target_type = 'admin_user' THEN
-            IF p_target_id IS NULL OR length(btrim(p_target_id)) = 0 THEN
-                RETURN;
-            END IF;
-
-            BEGIN
-                v_target_uuid := btrim(p_target_id)::UUID;
-            EXCEPTION WHEN OTHERS THEN
-                RETURN;
-            END;
-
-        ELSIF p_target_type = 'role' THEN
-            IF p_target_id IS NULL OR length(btrim(p_target_id)) = 0 THEN
-                RETURN;
-            END IF;
-        END IF;
-
-        FOR v_cand IN
-            SELECT au.user_id, au.is_super_admin
-            FROM public.admin_users au
-            WHERE au.active = true
-        LOOP
-            IF p_exclude_actor IS TRUE
-               AND p_actor_user_id IS NOT NULL
-               AND v_cand.user_id = p_actor_user_id
-            THEN
-                CONTINUE;
-            END IF;
-
-            IF v_cand.is_super_admin IS TRUE THEN
-                IF p_include_super_admin IS TRUE THEN
-                    RETURN NEXT v_cand.user_id;
-                END IF;
-
-                CONTINUE;
-            END IF;
-
-            v_eff_perms := ARRAY(
-                SELECT p_id
-                FROM public.admin_notification_get_effective_permissions(v_cand.user_id) AS p_id
-            );
-
-            IF p_required_all_permissions IS NOT NULL
-               AND cardinality(p_required_all_permissions) > 0
-            THEN
-                IF NOT (p_required_all_permissions <@ v_eff_perms) THEN
-                    CONTINUE;
-                END IF;
-            END IF;
-
-            IF p_required_any_permissions IS NOT NULL
-               AND cardinality(p_required_any_permissions) > 0
-            THEN
-                IF NOT (p_required_any_permissions && v_eff_perms) THEN
-                    CONTINUE;
-                END IF;
-            END IF;
-
-            IF p_target_type = 'admin_user' THEN
-                v_scope_ok :=
-                    public.admin_notification_can_view_user_scope(
-                        v_cand.user_id,
-                        v_target_uuid
-                    );
-
-                IF v_scope_ok IS NOT TRUE THEN
-                    CONTINUE;
-                END IF;
-
-            ELSIF p_target_type = 'role' THEN
-                v_scope_ok :=
-                    public.admin_notification_can_view_role_scope(
-                        v_cand.user_id,
-                        btrim(p_target_id)
-                    );
-
-                IF v_scope_ok IS NOT TRUE THEN
-                    CONTINUE;
-                END IF;
-
-            ELSIF p_target_type = 'complaint' THEN
-                NULL;
-
-            ELSIF p_target_type IS NULL THEN
-                NULL;
-
-            ELSE
-                CONTINUE;
-            END IF;
-
-            RETURN NEXT v_cand.user_id;
-        END LOOP;
-
-        RETURN;
-    END IF;
-
-    RETURN;
-END;
-$function$;
 CREATE OR REPLACE FUNCTION public.admin_notify_banner_published_trigger()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3377,131 +4634,6 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$;
-CREATE OR REPLACE FUNCTION public.admin_preview_sourced_report_intake(p_payload jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-declare
-  v_source_check jsonb;
-  v_duplicate jsonb;
-  v_report jsonb:=coalesce(p_payload->'report','{}'::jsonb);
-  v_incident_date date;
-  v_subcategory text:=nullif(btrim(v_report->>'subcategoryId'),'');
-  v_district text:=nullif(btrim(v_report->>'district'),'');
-  v_safe_candidates jsonb:='[]'::jsonb;
-  v_missing_fields jsonb:='[]'::jsonb;
-  v_privacy_review_required boolean:=false;
-begin
-  if coalesce(auth.jwt()->>'role','') <> 'service_role'
-     and (not public.is_active_admin() or not public.has_permission('complaints.publish')) then
-    raise exception 'Access denied.' using errcode='42501';
-  end if;
-
-  v_source_check:=public.admin_check_news_source_domain(p_payload#>>'{source,canonicalUrl}');
-  if coalesce((v_source_check->>'approved')::boolean,false) is not true then
-    raise exception 'SOURCE_DOMAIN_NOT_APPROVED: Source domain is not in the approved news-source registry.'
-      using errcode='22023';
-  end if;
-
-  if v_subcategory is not null then
-    v_missing_fields:=public.sourced_report_schema_validation_errors_internal(
-      v_subcategory,
-      v_report
-    );
-    v_privacy_review_required:=public.news_intake_privacy_review_required(v_subcategory);
-  end if;
-
-  v_duplicate:=public.evaluate_sourced_report_candidate_internal(p_payload);
-
-  if coalesce(v_duplicate->>'status','clear')='clear'
-     and v_subcategory is not null
-     and v_district is not null then
-    begin
-      v_incident_date:=(v_report->>'incidentDate')::date;
-    exception when others then
-      v_incident_date:=null;
-    end;
-
-    if v_incident_date is not null then
-      select coalesce(jsonb_agg(jsonb_build_object(
-        'complaintId',q.id,
-        'status',q.status,
-        'titleBn',q.title,
-        'titleEn',q.title_en,
-        'segmentId',q.segment_id,
-        'subcategoryId',q.subcategory_id,
-        'incidentDate',to_char(q.incident_date,'YYYY-MM-DD'),
-        'district',q.district,
-        'upazilaOrThana',q.upazila_or_thana,
-        'area',q.area,
-        'score',60,
-        'titleSimilarity',0,
-        'matchLevel','review',
-        'reasons',jsonb_build_array(
-          'same_subcategory',
-          'same_incident_date',
-          'same_district',
-          'cross_language_safe_review'
-        ),
-        'sources',(
-          select coalesce(jsonb_agg(jsonb_build_object(
-            'publisherName',cs.publisher_name,
-            'sourceTitle',cs.source_title,
-            'canonicalUrl',cs.canonical_url,
-            'sourcePublishedDate',to_char(cs.source_published_date,'YYYY-MM-DD')
-          ) order by cs.created_at),'[]'::jsonb)
-          from public.complaint_sources cs
-          where cs.complaint_id=q.id
-        )
-      ) order by q.created_at desc),'[]'::jsonb)
-      into v_safe_candidates
-      from (
-        select c.*
-        from public.complaints c
-        where c.origin_type='sourced_report'
-          and c.status in ('submitted','published','unpublished','edited')
-          and c.subcategory_id=v_subcategory
-          and c.incident_date=v_incident_date
-          and public.normalize_duplicate_text(c.district)=public.normalize_duplicate_text(v_district)
-        order by c.created_at desc
-        limit 5
-      ) q;
-
-      if jsonb_array_length(v_safe_candidates)>0 then
-        v_duplicate:=v_duplicate || jsonb_build_object(
-          'status','review',
-          'requiresReview',true,
-          'candidateCount',jsonb_array_length(v_safe_candidates),
-          'reviewCount',jsonb_array_length(v_safe_candidates),
-          'candidates',v_safe_candidates
-        );
-      end if;
-    end if;
-  end if;
-
-  return jsonb_build_object(
-    'sourceDomain',v_source_check,
-    'duplicate',v_duplicate,
-    'privacyReviewRequired',v_privacy_review_required,
-    'schemaValidation',jsonb_build_object(
-      'ready',jsonb_array_length(v_missing_fields)=0,
-      'missingFields',v_missing_fields
-    ),
-    'canCreateDraft',
-      jsonb_array_length(coalesce(v_duplicate->'exactSourceDuplicates','[]'::jsonb))=0
-      and jsonb_array_length(v_missing_fields)=0,
-    'canPublishImmediately',
-      coalesce(v_duplicate->>'status','clear')='clear'
-      and jsonb_array_length(v_missing_fields)=0
-      and (
-        not v_privacy_review_required
-        or lower(coalesce(v_report#>>'{customFieldAnswers,sensitiveContentReviewed}','false'))='true'
-      )
-  );
-end;
 $function$;
 CREATE OR REPLACE FUNCTION public.admin_publish_banner(p_category_key text)
  RETURNS jsonb
@@ -3844,6 +4976,36 @@ begin
   return jsonb_build_object('id',v_id,'runId',p_run_id);
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.location_mention_position(p_needle text, p_haystack text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+declare
+  v_needle text:=lower(btrim(coalesce(p_needle,'')));
+  v_hay text:=lower(coalesce(p_haystack,''));
+  v_norm_needle text;
+  v_norm_hay text;
+  v_pos integer;
+begin
+  if v_needle='' then return 0; end if;
+
+  if v_needle ~ '[ঀ-৿]' then
+    return regexp_instr(
+      v_hay,
+      '(^|[^ঀ-৿])' || v_needle ||
+      '(?:য়|য়|য়ে|য়ে|ে|র|এর|তে|য়ের|য়ের|েই|য়েই|য়েই)?($|[^ঀ-৿])',
+      1,1,0,'i'
+    );
+  end if;
+
+  v_norm_needle:=regexp_replace(v_needle,'[[:punct:][:space:]]+',' ','g');
+  v_norm_hay:=' '||regexp_replace(v_hay,'[[:punct:][:space:]]+',' ','g')||' ';
+  v_pos:=position(' '||v_norm_needle||' ' in v_norm_hay);
+  return v_pos;
+end
+$function$;
 CREATE OR REPLACE FUNCTION public.admin_resolve_news_intake_location(p_text text, p_language text DEFAULT 'unknown'::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -4022,71 +5184,6 @@ begin
   update public.site_banners set draft_content=p_content,draft_updated_at=now(),draft_updated_by=auth.uid() where category_key=p_category_key;
   return jsonb_build_object('ok',true,'categoryKey',p_category_key);
 end; $function$;
-CREATE OR REPLACE FUNCTION public.can_manage_role_scope(p_role_id text)
- RETURNS boolean
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-declare
-    v_user_id uuid;
-    v_is_active_admin boolean;
-    v_is_super_admin boolean;
-    v_bootstrap_mode boolean;
-    v_role_exists boolean;
-begin
-    v_user_id := auth.uid();
-
-    if v_user_id is null
-       or not private.is_current_auth_session_valid()
-    then
-        return false;
-    end if;
-
-    select exists (
-        select 1 from public.roles where id = p_role_id
-    ) into v_role_exists;
-
-    if not v_role_exists then
-        return false;
-    end if;
-
-    select (active = true)
-    into v_is_active_admin
-    from public.admin_users
-    where user_id = v_user_id;
-
-    if v_is_active_admin is not true then
-        return false;
-    end if;
-
-    select coalesce(au.is_super_admin, false)
-    into v_is_super_admin
-    from public.admin_users au
-    where au.user_id = v_user_id
-      and au.active = true;
-
-    if v_is_super_admin is true then
-        return true;
-    end if;
-
-    select not exists (select 1 from public.user_roles)
-    into v_bootstrap_mode;
-
-    if v_bootstrap_mode is true then
-        return true;
-    end if;
-
-    return not exists (
-        select 1
-        from public.role_permissions rp
-        where rp.role_id = p_role_id
-          and rp.permission_id not in (
-              select public.get_caller_effective_permission_set()
-          )
-    );
-end;
-$function$;
 CREATE OR REPLACE FUNCTION public.can_manage_user_target(p_target_user_id uuid)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -4175,62 +5272,6 @@ BEGIN
     );
 END;
 $function$;
-CREATE OR REPLACE FUNCTION public.canonical_district_id(p_value text)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  select d.id
-  from public.bangladesh_districts d
-  where lower(btrim(coalesce(p_value,''))) in (lower(d.id),lower(d.name_en),lower(d.name_bn))
-     or exists(select 1 from unnest(d.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
-  limit 1
-$function$;
-CREATE OR REPLACE FUNCTION public.canonical_district_name(p_value text)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  select d.name_en
-  from public.bangladesh_districts d
-  where lower(btrim(coalesce(p_value,''))) in (lower(d.id),lower(d.name_en),lower(d.name_bn))
-     or exists(select 1 from unnest(d.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
-  limit 1
-$function$;
-CREATE OR REPLACE FUNCTION public.canonical_division_name(p_value text)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  select d.name_en
-  from public.bangladesh_divisions d
-  where lower(btrim(coalesce(p_value,''))) in (lower(d.id),lower(d.name_en),lower(d.name_bn))
-     or exists(select 1 from unnest(d.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
-  limit 1
-$function$;
-CREATE OR REPLACE FUNCTION public.canonical_upazila_name(p_value text, p_district text DEFAULT NULL::text)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  select u.name_en
-  from public.bangladesh_upazilas u
-  join public.bangladesh_districts d on d.id=u.district_id
-  where (
-    lower(btrim(coalesce(p_value,''))) in (lower(u.id),lower(u.name_en),lower(u.name_bn))
-    or exists(select 1 from unnest(u.aliases) a where lower(a)=lower(btrim(coalesce(p_value,''))))
-  )
-  and (
-    nullif(btrim(coalesce(p_district,'')),'') is null
-    or d.id=public.canonical_district_id(p_district)
-  )
-  order by case when d.id=public.canonical_district_id(p_district) then 0 else 1 end,u.id
-  limit 1
-$function$;
 CREATE OR REPLACE FUNCTION public.capture_complaint_taxonomy_snapshot()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4274,6 +5315,20 @@ begin
 
   return new;
 end;
+$function$;
+CREATE OR REPLACE FUNCTION public.location_text_language(p_value text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  select case
+    when nullif(btrim(coalesce(p_value,'')),'') is null then 'unknown'
+    when p_value ~ '[ঀ-৿]' and p_value ~ '[A-Za-z]' then 'mixed'
+    when p_value ~ '[ঀ-৿]' then 'bn'
+    when p_value ~ '[A-Za-z]' then 'en'
+    else 'unknown'
+  end
 $function$;
 CREATE OR REPLACE FUNCTION public.compose_public_area(p_area text, p_upazila_label text, p_district_label text, p_lang text)
  RETURNS text
@@ -4324,63 +5379,6 @@ begin
   if array_length(v_parts,1) is null then return null; end if;
   return array_to_string(v_parts,', ');
 end
-$function$;
-CREATE OR REPLACE FUNCTION public.duplicate_report_signature_values(p_segment_id text, p_subcategory_id text, p_title text, p_title_en text, p_incident_date date, p_district text, p_upazila_or_thana text, p_area text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select encode(
-    extensions.digest(
-      concat_ws(
-        '|',
-        public.normalize_duplicate_text(p_segment_id),
-        public.normalize_duplicate_text(p_subcategory_id),
-        public.normalize_duplicate_text(p_title),
-        public.normalize_duplicate_text(p_title_en),
-        coalesce(p_incident_date::text, ''),
-        public.normalize_duplicate_text(p_district),
-        public.normalize_duplicate_text(p_upazila_or_thana),
-        public.normalize_duplicate_text(p_area)
-      ),
-      'sha256'
-    ),
-    'hex'
-  );
-$function$;
-CREATE OR REPLACE FUNCTION public.duplicate_token_similarity(p_left text, p_right text)
- RETURNS numeric
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  with
-  left_tokens as (
-    select distinct token
-    from regexp_split_to_table(public.normalize_duplicate_text(p_left), '[[:space:]]+') as token
-    where char_length(token) >= 2
-  ),
-  right_tokens as (
-    select distinct token
-    from regexp_split_to_table(public.normalize_duplicate_text(p_right), '[[:space:]]+') as token
-    where char_length(token) >= 2
-  ),
-  counts as (
-    select
-      (select count(*) from left_tokens) as left_count,
-      (select count(*) from right_tokens) as right_count,
-      (
-        select count(*)
-        from left_tokens l
-        join right_tokens r using (token)
-      ) as shared_count
-  )
-  select case
-    when left_count = 0 or right_count = 0 then 0::numeric
-    else round((2.0 * shared_count / (left_count + right_count))::numeric, 4)
-  end
-  from counts;
 $function$;
 CREATE OR REPLACE FUNCTION public.enforce_public_complaint_submission_rate()
  RETURNS trigger
@@ -4569,503 +5567,6 @@ begin
   end if;
 
   return new;
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.evaluate_sourced_report_candidate_internal(p_payload jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-declare
-  v_report jsonb:=coalesce(p_payload->'report','{}'::jsonb);
-  v_source jsonb:=coalesce(p_payload->'source','{}'::jsonb);
-  v_segment text:=nullif(btrim(v_report->>'segmentId'),'');
-  v_subcategory text:=nullif(btrim(v_report->>'subcategoryId'),'');
-  v_title text:=nullif(btrim(v_report->>'titleBn'),'');
-  v_title_en text:=nullif(btrim(v_report->>'titleEn'),'');
-  v_incident_date date;
-  v_district text:=nullif(btrim(v_report->>'district'),'');
-  v_upazila text:=nullif(btrim(v_report->>'upazilaOrThana'),'');
-  v_area text:=nullif(btrim(v_report->>'area'),'');
-  v_url text:=nullif(btrim(v_source->>'canonicalUrl'),'');
-  v_exact jsonb:='[]'::jsonb;
-  v_candidates jsonb:='[]'::jsonb;
-  v_candidate_count integer:=0;
-  v_match_count integer:=0;
-  v_review_count integer:=0;
-  v_status text:='clear';
-begin
-  begin
-    v_incident_date:=(v_report->>'incidentDate')::date;
-  exception when others then
-    raise exception 'A valid incident date is required.' using errcode='22023';
-  end;
-
-  if v_segment is null or v_subcategory is null or coalesce(v_title,v_title_en) is null
-     or v_district is null then
-    raise exception 'Category, subcategory, title, incident date, and district are required for duplicate preview.'
-      using errcode='22023';
-  end if;
-
-  if v_url is not null then
-    select coalesce(jsonb_agg(jsonb_build_object(
-      'complaintId',c.id,
-      'status',c.status,
-      'titleBn',c.title,
-      'titleEn',c.title_en,
-      'publisherName',s.publisher_name,
-      'sourceTitle',s.source_title,
-      'canonicalUrl',s.canonical_url
-    ) order by case when c.status='published' then 0 else 1 end,c.created_at desc),'[]'::jsonb)
-    into v_exact
-    from public.complaint_sources s
-    join public.complaints c on c.id=s.complaint_id
-    where public.normalize_source_url(s.canonical_url)=public.normalize_source_url(v_url);
-  end if;
-
-  with candidate_base as (
-    select
-      c.*,
-      greatest(
-        public.duplicate_token_similarity(v_title,c.title),
-        public.duplicate_token_similarity(v_title,c.title_en),
-        public.duplicate_token_similarity(v_title_en,c.title),
-        public.duplicate_token_similarity(v_title_en,c.title_en)
-      ) title_similarity,
-      v_subcategory=c.subcategory_id same_subcategory,
-      v_incident_date=c.incident_date same_date,
-      abs(v_incident_date-c.incident_date) date_delta,
-      public.normalize_duplicate_text(v_district)<>'' and
-        public.normalize_duplicate_text(v_district)=public.normalize_duplicate_text(c.district) same_district,
-      public.normalize_duplicate_text(v_upazila)<>'' and
-        public.normalize_duplicate_text(v_upazila)=public.normalize_duplicate_text(c.upazila_or_thana) same_upazila,
-      public.normalize_duplicate_text(v_area)<>'' and
-        public.normalize_duplicate_text(v_area)=public.normalize_duplicate_text(c.area) same_area,
-      (
-        public.normalize_duplicate_text(v_title)<>'' and (
-          public.normalize_duplicate_text(v_title)=public.normalize_duplicate_text(c.title)
-          or public.normalize_duplicate_text(v_title)=public.normalize_duplicate_text(c.title_en)
-        )
-      ) or (
-        public.normalize_duplicate_text(v_title_en)<>'' and (
-          public.normalize_duplicate_text(v_title_en)=public.normalize_duplicate_text(c.title)
-          or public.normalize_duplicate_text(v_title_en)=public.normalize_duplicate_text(c.title_en)
-        )
-      ) exact_title
-    from public.complaints c
-    where c.origin_type='sourced_report'
-      and c.status in ('submitted','published','unpublished','edited')
-      and c.segment_id=v_segment
-      and (
-        abs(v_incident_date-c.incident_date)<=3
-        or greatest(
-          public.duplicate_token_similarity(v_title,c.title),
-          public.duplicate_token_similarity(v_title,c.title_en),
-          public.duplicate_token_similarity(v_title_en,c.title),
-          public.duplicate_token_similarity(v_title_en,c.title_en)
-        )>=0.50
-      )
-  ),
-  scored as (
-    select *,
-      least(100,
-        (case when same_subcategory then 25 else 0 end)
-        +(case when same_date then 25 when date_delta=1 then 15 when date_delta<=3 then 5 else 0 end)
-        +(case when same_district then 10 else 0 end)
-        +(case when same_upazila then 15 else 0 end)
-        +(case when same_area then 15 else 0 end)
-        +(case when exact_title then 30 else round(title_similarity*30)::integer end)
-      ) score
-    from candidate_base
-  ),
-  classified as (
-    select *,
-      case
-        when exact_title and same_subcategory and date_delta<=1 then 'match'
-        when score>=75 and title_similarity>=0.35 and (same_upazila or same_area) then 'match'
-        when score>=55 and (title_similarity>=0.20 or same_area) then 'review'
-        else 'clear'
-      end match_level
-    from scored
-  ),
-  ranked as (
-    select * from classified
-    where match_level in ('match','review')
-    order by case match_level when 'match' then 0 else 1 end,score desc,created_at desc,id
-    limit 5
-  )
-  select
-    coalesce(jsonb_agg(jsonb_build_object(
-      'complaintId',r.id,
-      'status',r.status,
-      'titleBn',r.title,
-      'titleEn',r.title_en,
-      'segmentId',r.segment_id,
-      'subcategoryId',r.subcategory_id,
-      'incidentDate',to_char(r.incident_date,'YYYY-MM-DD'),
-      'district',r.district,
-      'upazilaOrThana',r.upazila_or_thana,
-      'area',r.area,
-      'score',r.score,
-      'titleSimilarity',r.title_similarity,
-      'matchLevel',r.match_level,
-      'reasons',to_jsonb(array_remove(array[
-        case when r.same_subcategory then 'same_subcategory' end,
-        case when r.same_date then 'same_incident_date' end,
-        case when r.same_district then 'same_district' end,
-        case when r.same_upazila then 'same_upazila_or_thana' end,
-        case when r.same_area then 'same_area' end,
-        case when r.exact_title then 'same_normalized_title' end,
-        case when r.title_similarity>=0.50 then 'strong_title_overlap'
-             when r.title_similarity>=0.20 then 'title_overlap' end
-      ]::text[],null)),
-      'sources',(
-        select coalesce(jsonb_agg(jsonb_build_object(
-          'publisherName',cs.publisher_name,
-          'sourceTitle',cs.source_title,
-          'canonicalUrl',cs.canonical_url,
-          'sourcePublishedDate',to_char(cs.source_published_date,'YYYY-MM-DD')
-        ) order by cs.created_at),'[]'::jsonb)
-        from public.complaint_sources cs where cs.complaint_id=r.id
-      )
-    ) order by case r.match_level when 'match' then 0 else 1 end,r.score desc,r.created_at desc),'[]'::jsonb),
-    count(*)::integer,
-    count(*) filter(where match_level='match')::integer,
-    count(*) filter(where match_level='review')::integer
-  into v_candidates,v_candidate_count,v_match_count,v_review_count
-  from ranked r;
-
-  if jsonb_array_length(v_exact)>0 then v_status:='exact';
-  elsif v_match_count>0 then v_status:='match';
-  elsif v_review_count>0 then v_status:='review';
-  end if;
-
-  return jsonb_build_object(
-    'applicable',true,
-    'status',v_status,
-    'requiresReview',v_status<>'clear',
-    'candidateCount',v_candidate_count,
-    'matchCount',v_match_count,
-    'reviewCount',v_review_count,
-    'exactSourceDuplicates',v_exact,
-    'candidates',v_candidates
-  );
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.evaluate_sourced_report_duplicate_internal(p_complaint_id text)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-declare
-  v_target public.complaints%rowtype;
-  v_target_signature text;
-  v_exact_sources jsonb := '[]'::jsonb;
-  v_candidates jsonb := '[]'::jsonb;
-  v_candidate_count integer := 0;
-  v_match_count integer := 0;
-  v_review_count integer := 0;
-  v_status text := 'clear';
-begin
-  select *
-  into v_target
-  from public.complaints
-  where id = p_complaint_id;
-
-  if v_target.id is null then
-    raise exception 'Complaint with ID % not found', p_complaint_id using errcode='P0002';
-  end if;
-
-  if v_target.origin_type <> 'sourced_report' then
-    return jsonb_build_object(
-      'applicable', false,
-      'status', 'clear',
-      'requiresReview', false,
-      'candidateCount', 0,
-      'exactSourceDuplicates', '[]'::jsonb,
-      'candidates', '[]'::jsonb
-    );
-  end if;
-
-  v_target_signature := public.duplicate_report_signature_values(
-    v_target.segment_id,
-    v_target.subcategory_id,
-    v_target.title,
-    v_target.title_en,
-    v_target.incident_date,
-    v_target.district,
-    v_target.upazila_or_thana,
-    v_target.area
-  );
-
-  select coalesce(
-    jsonb_agg(
-      jsonb_build_object(
-        'complaintId', other_c.id,
-        'status', other_c.status,
-        'titleBn', other_c.title,
-        'titleEn', other_c.title_en,
-        'publisherName', other_s.publisher_name,
-        'sourceTitle', other_s.source_title,
-        'canonicalUrl', other_s.canonical_url
-      )
-      order by other_c.created_at desc, other_c.id
-    ),
-    '[]'::jsonb
-  )
-  into v_exact_sources
-  from public.complaint_sources target_s
-  join public.complaint_sources other_s
-    on public.normalize_source_url(other_s.canonical_url) =
-       public.normalize_source_url(target_s.canonical_url)
-   and other_s.complaint_id <> target_s.complaint_id
-  join public.complaints other_c on other_c.id = other_s.complaint_id
-  where target_s.complaint_id = v_target.id
-    and other_c.status <> 'rejected';
-
-  with candidate_base as (
-    select
-      c.*,
-      public.duplicate_report_signature_values(
-        c.segment_id,
-        c.subcategory_id,
-        c.title,
-        c.title_en,
-        c.incident_date,
-        c.district,
-        c.upazila_or_thana,
-        c.area
-      ) as candidate_signature,
-      greatest(
-        public.duplicate_token_similarity(v_target.title, c.title),
-        public.duplicate_token_similarity(v_target.title, c.title_en),
-        public.duplicate_token_similarity(v_target.title_en, c.title),
-        public.duplicate_token_similarity(v_target.title_en, c.title_en)
-      ) as title_similarity,
-      v_target.subcategory_id = c.subcategory_id as same_subcategory,
-      v_target.incident_date = c.incident_date as same_date,
-      abs(v_target.incident_date - c.incident_date) as date_delta,
-      public.normalize_duplicate_text(v_target.district) <> ''
-        and public.normalize_duplicate_text(v_target.district) =
-            public.normalize_duplicate_text(c.district) as same_district,
-      public.normalize_duplicate_text(v_target.upazila_or_thana) <> ''
-        and public.normalize_duplicate_text(v_target.upazila_or_thana) =
-            public.normalize_duplicate_text(c.upazila_or_thana) as same_upazila,
-      public.normalize_duplicate_text(v_target.area) <> ''
-        and public.normalize_duplicate_text(v_target.area) =
-            public.normalize_duplicate_text(c.area) as same_area,
-      (
-        public.normalize_duplicate_text(v_target.title) <> ''
-        and (
-          public.normalize_duplicate_text(v_target.title) = public.normalize_duplicate_text(c.title)
-          or public.normalize_duplicate_text(v_target.title) = public.normalize_duplicate_text(c.title_en)
-        )
-      ) or (
-        public.normalize_duplicate_text(v_target.title_en) <> ''
-        and (
-          public.normalize_duplicate_text(v_target.title_en) = public.normalize_duplicate_text(c.title)
-          or public.normalize_duplicate_text(v_target.title_en) = public.normalize_duplicate_text(c.title_en)
-        )
-      ) as exact_title
-    from public.complaints c
-    where c.id <> v_target.id
-      and c.origin_type = 'sourced_report'
-      and c.status in ('submitted', 'published', 'unpublished', 'edited')
-      and c.segment_id = v_target.segment_id
-      and (
-        abs(v_target.incident_date - c.incident_date) <= 3
-        or greatest(
-          public.duplicate_token_similarity(v_target.title, c.title),
-          public.duplicate_token_similarity(v_target.title, c.title_en),
-          public.duplicate_token_similarity(v_target.title_en, c.title),
-          public.duplicate_token_similarity(v_target.title_en, c.title_en)
-        ) >= 0.50
-      )
-  ),
-  without_valid_override as (
-    select b.*
-    from candidate_base b
-    left join public.report_duplicate_overrides o
-      on o.report_a_id = least(v_target.id, b.id)
-     and o.report_b_id = greatest(v_target.id, b.id)
-     and o.report_a_signature = case
-       when v_target.id < b.id then v_target_signature else b.candidate_signature
-     end
-     and o.report_b_signature = case
-       when v_target.id < b.id then b.candidate_signature else v_target_signature
-     end
-    where o.report_a_id is null
-  ),
-  scored as (
-    select
-      b.*,
-      least(
-        100,
-          (case when same_subcategory then 25 else 0 end)
-        + (case when same_date then 25 when date_delta = 1 then 15 when date_delta <= 3 then 5 else 0 end)
-        + (case when same_district then 10 else 0 end)
-        + (case when same_upazila then 15 else 0 end)
-        + (case when same_area then 15 else 0 end)
-        + (case when exact_title then 30 else round(title_similarity * 30)::integer end)
-      ) as score
-    from without_valid_override b
-  ),
-  classified as (
-    select
-      s.*,
-      case
-        when exact_title and same_subcategory and date_delta <= 1 then 'match'
-        when score >= 75 and title_similarity >= 0.35 and (same_upazila or same_area) then 'match'
-        when score >= 55 and (title_similarity >= 0.20 or same_area) then 'review'
-        else 'clear'
-      end as match_level
-    from scored s
-  ),
-  flagged as (
-    select *
-    from classified
-    where match_level in ('match', 'review')
-  ),
-  ranked as (
-    select *
-    from flagged
-    order by
-      case match_level when 'match' then 0 else 1 end,
-      score desc,
-      created_at desc,
-      id
-    limit 5
-  )
-  select
-    coalesce(jsonb_agg(
-      jsonb_build_object(
-        'complaintId', r.id,
-        'status', r.status,
-        'titleBn', r.title,
-        'titleEn', r.title_en,
-        'segmentId', r.segment_id,
-        'subcategoryId', r.subcategory_id,
-        'incidentDate', to_char(r.incident_date, 'YYYY-MM-DD'),
-        'district', r.district,
-        'upazilaOrThana', r.upazila_or_thana,
-        'area', r.area,
-        'score', r.score,
-        'titleSimilarity', r.title_similarity,
-        'matchLevel', r.match_level,
-        'reasons', to_jsonb(array_remove(array[
-          case when r.same_subcategory then 'same_subcategory' end,
-          case when r.same_date then 'same_incident_date' end,
-          case when r.same_district then 'same_district' end,
-          case when r.same_upazila then 'same_upazila_or_thana' end,
-          case when r.same_area then 'same_area' end,
-          case when r.exact_title then 'same_normalized_title' end,
-          case when r.title_similarity >= 0.50 then 'strong_title_overlap'
-               when r.title_similarity >= 0.20 then 'title_overlap' end
-        ]::text[], null)),
-        'sources', (
-          select coalesce(jsonb_agg(
-            jsonb_build_object(
-              'publisherName', cs.publisher_name,
-              'sourceTitle', cs.source_title,
-              'canonicalUrl', cs.canonical_url,
-              'sourcePublishedDate', to_char(cs.source_published_date, 'YYYY-MM-DD')
-            )
-            order by cs.created_at
-          ), '[]'::jsonb)
-          from public.complaint_sources cs
-          where cs.complaint_id = r.id
-        )
-      )
-      order by
-        case r.match_level when 'match' then 0 else 1 end,
-        r.score desc,
-        r.created_at desc,
-        r.id
-    ), '[]'::jsonb),
-    count(*)::integer,
-    count(*) filter (where match_level = 'match')::integer,
-    count(*) filter (where match_level = 'review')::integer
-  into v_candidates, v_candidate_count, v_match_count, v_review_count
-  from ranked r;
-
-  if jsonb_array_length(v_exact_sources) > 0 then
-    v_status := 'exact';
-  elsif v_match_count > 0 then
-    v_status := 'match';
-  elsif v_review_count > 0 then
-    v_status := 'review';
-  else
-    v_status := 'clear';
-  end if;
-
-  return jsonb_build_object(
-    'applicable', true,
-    'status', v_status,
-    'requiresReview', v_status <> 'clear',
-    'candidateCount', v_candidate_count,
-    'matchCount', v_match_count,
-    'reviewCount', v_review_count,
-    'exactSourceDuplicates', v_exact_sources,
-    'candidates', v_candidates
-  );
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.get_caller_effective_permission_set()
- RETURNS SETOF text
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-declare
-    v_user_id uuid;
-    v_is_active_admin boolean;
-    v_is_super_admin boolean;
-    v_bootstrap_mode boolean;
-begin
-    v_user_id := auth.uid();
-
-    if v_user_id is null
-       or not private.is_current_auth_session_valid()
-    then
-        return;
-    end if;
-
-    select (active = true)
-    into v_is_active_admin
-    from public.admin_users
-    where user_id = v_user_id;
-
-    if v_is_active_admin is not true then
-        return;
-    end if;
-
-    select coalesce(au.is_super_admin, false)
-    into v_is_super_admin
-    from public.admin_users au
-    where au.user_id = v_user_id
-      and au.active = true;
-
-    if v_is_super_admin is true then
-        return query select p.id from public.permissions p;
-        return;
-    end if;
-
-    select not exists (select 1 from public.user_roles)
-    into v_bootstrap_mode;
-
-    if v_bootstrap_mode is true then
-        return query select p.id from public.permissions p;
-        return;
-    end if;
-
-    return query
-    select distinct rp.permission_id
-    from public.user_roles ur
-    join public.roles r on r.id = ur.role_id and r.active = true
-    join public.role_permissions rp on rp.role_id = r.id
-    where ur.user_id = v_user_id;
 end;
 $function$;
 CREATE OR REPLACE FUNCTION public.get_platform_sync_contract_version()
@@ -5821,6 +6322,65 @@ begin
   return new;
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.news_intake_has_explicit_past_relative_date(p_value text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  select coalesce(p_value,'') ~* '(গতকাল|গত[[:space:]]+(রবিবার|রোববার|সোমবার|মঙ্গলবার|বুধবার|বৃহস্পতিবার|শুক্রবার|শনিবার)|yesterday|last[[:space:]]+(sunday|monday|tuesday|wednesday|thursday|friday|saturday))'
+$function$;
+CREATE OR REPLACE FUNCTION public.news_intake_specific_location_text_is_safe(p_value text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+select case
+  when nullif(btrim(coalesce(p_value,'')),'') is null then false
+  when char_length(btrim(p_value))<5 or char_length(btrim(p_value))>120 then false
+  when lower(btrim(p_value)) ~ '^(area|market|bazaar|thana|upazila|union|village|city|road|street|lane|station)$' then false
+  when lower(btrim(p_value)) ~ '^(on|at|in|near)[[:space:]]+(the[[:space:]]+)?(road|street|lane|area|city|district|station)([[:space:]]+[0-9]+)?$' then false
+  when lower(p_value) ~ '(various|several)[[:space:]]+areas?' then false
+  when p_value ~ '(বিভিন্ন)[[:space:]]+এলাকা' then false
+  when btrim(p_value) ~ '^(?:[০-৯0-9]{1,2}[[:space:]]+)?(?:জানুয়ারি|জানুয়ারি|ফেব্রুয়ারি|ফেব্রুয়ারি|মার্চ|এপ্রিল|মে|জুন|জুলাই|আগস্ট|সেপ্টেম্বর|অক্টোবর|নভেম্বর|ডিসেম্বর|সকাল|দুপুর|বিকেল|সন্ধ্যা|রাত)' then false
+  when lower(btrim(p_value)) ~ '^(?:[0-9]{1,2}[[:space:]]+)?(?:january|february|march|april|may|june|july|august|september|october|november|december|morning|afternoon|evening|night)([[:space:]]|$)' then false
+  when btrim(p_value) ~ '^(গত|পূর্ববর্তী)[[:space:]]+(বছর(ের)?|মাস(ের)?|সপ্তাহ(ের)?|দিন(ের)?)([[:space:]]|$)' then false
+  when lower(btrim(p_value)) ~ '^(last|previous)[[:space:]]+(year|month|week|day)([[:space:]]|$)' then false
+  when p_value ~ '(জেলার).{0,90}([[:space:]]ও[[:space:]]|[[:space:]]এবং[[:space:]]|,).{0,90}(উপজেলা|থানা)' then false
+  when lower(p_value) ~ 'district(''s)? .{0,90}([[:space:]]and[[:space:]]|,).{0,90}(upazila|thana)' then false
+  when p_value ~ '(উপজেলা|থানা).{0,70}([[:space:]]ও[[:space:]]|[[:space:]]এবং[[:space:]]|,).{0,70}(উপজেলা|থানা)' then false
+  when lower(p_value) ~ '(upazila|thana).{0,70}([[:space:]]and[[:space:]]|,).{0,70}(upazila|thana)' then false
+  when lower(p_value) ~ '(collected[[:space:]]+evidence|cordoned[[:space:]]+off|investigat(e|ed|ing|ion)|police[[:space:]]+said|officials?[[:space:]]+said|victims?|the[[:space:]]+victim|was[[:space:]]+arrested|were[[:space:]]+arrested|detained|went[[:space:]]+to[[:space:]]+the[[:space:]]+area|visited[[:space:]]+the[[:space:]]+area)' then false
+  when p_value ~ '(ভুক্তভোগী|পুলিশ[[:space:]]+জানায়|পুলিশ[[:space:]]+জানায়|কর্তৃপক্ষ|তদন্ত|গ্রেপ্তার|আটক|নিহত|আহত|উদ্ধার|জানান|বলেন)' then false
+  when p_value ~ '(ঘটনার|ঘটনায়|ঘটনায়|হত্যার[[:space:]]+ঘটনায়|হত্যার[[:space:]]+ঘটনায়|মামলার|মামলায়|মামলায়).{0,90}(থানা|পুলিশ[[:space:]]+স্টেশন)' then false
+  when lower(p_value) ~ '(incident|case).{0,90}(police[[:space:]]+station|thana)' then false
+  when p_value ~ '(^|[[:space:]])(এদিকে|অন্যদিকে|এ[[:space:]]+ঘটনায়|এ[[:space:]]+ঘটনায়|এই[[:space:]]+ঘটনায়|এই[[:space:]]+ঘটনায়)($|[[:space:]])' then false
+  when p_value ~ '^(র|এর)[[:space:]]+' then false
+  else true
+end
+$function$;
+CREATE OR REPLACE FUNCTION public.news_intake_location_contract_is_valid(p_division text, p_district text, p_upazila text, p_area text, p_road text, p_landmark text, p_address text, p_scope text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select
+    public.canonical_division_name(p_division) is not null
+    and public.canonical_district_name(p_district) is not null
+    and case
+      when nullif(btrim(coalesce(p_upazila,'')),'') is not null
+        then public.canonical_upazila_name(p_upazila,p_district) is not null
+      when lower(coalesce(p_scope,''))='district_wide'
+        then true
+      else
+        coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_area),'')),false)
+        or coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_road),'')),false)
+        or coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_landmark),'')),false)
+        or coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_address),'')),false)
+    end
+$function$;
 CREATE OR REPLACE FUNCTION public.guard_trusted_news_intake_one_click_contract()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -5905,6 +6465,21 @@ begin
   return new;
 end
 $function$;
+CREATE OR REPLACE FUNCTION public.news_intake_specific_location_has_positive_evidence(p_value text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  select case
+    when nullif(btrim(coalesce(p_value,'')),'') is null then false
+    when char_length(btrim(p_value)) < 5 or char_length(btrim(p_value)) > 120 then false
+    when p_value ~ '(^|[[:space:],;:()/–—-])(থানা|উপজেলা|ইউনিয়ন|ইউনিয়ন|বাজার|মার্কেট|এলাকা|মহল্লা|গ্রাম|সড়ক|সড়ক|মহাসড়ক|মহাসড়ক|রোড|লেন|গলি|মোড়|মোড়|রেলগেট|স্টেশন|শহর|নগরী|মহানগরী)(য়|য়|তে|ে|র|ের|এর)?($|[[:space:],.;:।()/–—-])' then true
+    when lower(p_value) ~ '(^|[[:space:],;:()/–—-])(police[[:space:]]+station|thana|upazila|union|market|bazaar|area|neighbou?rhood|village|road|street|lane|avenue|highway|rail[[:space:]]*gate|station|city|metropolitan[[:space:]]+area)($|[[:space:],.;:()/–—-])' then true
+    when btrim(p_value) ~ '^[A-Z][A-Za-z0-9.''’\-]*(?:[[:space:],]+[A-Z0-9][A-Za-z0-9.''’\-]*){0,6}$' then true
+    else false
+  end
+$function$;
 CREATE OR REPLACE FUNCTION public.guard_trusted_news_intake_positive_location()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -5940,287 +6515,6 @@ begin
 
   return new;
 end
-$function$;
-CREATE OR REPLACE FUNCTION public.has_permission(p_permission_id text)
- RETURNS boolean
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-declare
-    v_is_super_admin boolean;
-    v_perm_exists boolean;
-    v_requires_aal2 boolean;
-begin
-    if not private.is_current_auth_session_valid() then
-        return false;
-    end if;
-
-    v_requires_aal2 := p_permission_id = any(array[
-        'admin_users.manage',
-        'banners.manage',
-        'categories.manage',
-        'complaints.evidence_view',
-        'complaints.export',
-        'complaints.publish',
-        'complaints.reject',
-        'complaints.unpublish',
-        'location_activity.view',
-        'responses.publish',
-        'responses.reject',
-        'responses.resubmit',
-        'responses.unpublish',
-        'roles.manage'
-    ]::text[]);
-
-    if v_requires_aal2
-       and coalesce(auth.jwt()->>'aal','aal1') <> 'aal2' then
-        return false;
-    end if;
-
-    select coalesce(is_super_admin, false)
-    into v_is_super_admin
-    from public.admin_users
-    where user_id = auth.uid()
-      and active = true;
-
-    if v_is_super_admin is true then
-        select exists (
-            select 1
-            from public.permissions
-            where id = p_permission_id
-        )
-        into v_perm_exists;
-
-        return v_perm_exists;
-    end if;
-
-    return exists (
-        select 1
-        from public.admin_users au
-        join public.user_roles ur
-          on ur.user_id = au.user_id
-        join public.roles r
-          on r.id = ur.role_id
-        join public.role_permissions rp
-          on rp.role_id = r.id
-        where au.user_id = auth.uid()
-          and au.active = true
-          and r.active = true
-          and rp.permission_id = p_permission_id
-    );
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.is_active_admin()
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-  select private.is_current_auth_session_valid()
-     and exists (
-       select 1
-       from public.admin_users
-       where user_id = auth.uid()
-         and active = true
-     );
-$function$;
-CREATE OR REPLACE FUNCTION public.location_mention_position(p_needle text, p_haystack text)
- RETURNS integer
- LANGUAGE plpgsql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-declare
-  v_needle text:=lower(btrim(coalesce(p_needle,'')));
-  v_hay text:=lower(coalesce(p_haystack,''));
-  v_norm_needle text;
-  v_norm_hay text;
-  v_pos integer;
-begin
-  if v_needle='' then return 0; end if;
-
-  if v_needle ~ '[ঀ-৿]' then
-    return regexp_instr(
-      v_hay,
-      '(^|[^ঀ-৿])' || v_needle ||
-      '(?:য়|য়|য়ে|য়ে|ে|র|এর|তে|য়ের|য়ের|েই|য়েই|য়েই)?($|[^ঀ-৿])',
-      1,1,0,'i'
-    );
-  end if;
-
-  v_norm_needle:=regexp_replace(v_needle,'[[:punct:][:space:]]+',' ','g');
-  v_norm_hay:=' '||regexp_replace(v_hay,'[[:punct:][:space:]]+',' ','g')||' ';
-  v_pos:=position(' '||v_norm_needle||' ' in v_norm_hay);
-  return v_pos;
-end
-$function$;
-CREATE OR REPLACE FUNCTION public.location_text_language(p_value text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-  select case
-    when nullif(btrim(coalesce(p_value,'')),'') is null then 'unknown'
-    when p_value ~ '[ঀ-৿]' and p_value ~ '[A-Za-z]' then 'mixed'
-    when p_value ~ '[ঀ-৿]' then 'bn'
-    when p_value ~ '[A-Za-z]' then 'en'
-    else 'unknown'
-  end
-$function$;
-CREATE OR REPLACE FUNCTION public.log_role_audit_event(p_action text, p_target_id text, p_details jsonb DEFAULT '{}'::jsonb)
- RETURNS uuid
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-DECLARE
-    v_log_id UUID;
-BEGIN
-    INSERT INTO public.admin_audit_logs (
-        actor_id,
-        action,
-        target_type,
-        target_id,
-        details,
-        created_at
-    )
-    VALUES (
-        auth.uid(),
-        p_action,
-        CASE
-            WHEN p_action ILIKE '%USER%' THEN 'USER'
-            ELSE 'ROLE'
-        END,
-        p_target_id,
-        COALESCE(p_details, '{}'::jsonb),
-        clock_timestamp()
-    )
-    RETURNING id INTO v_log_id;
-
-    RETURN v_log_id;
-END;
-$function$;
-CREATE OR REPLACE FUNCTION public.news_intake_has_explicit_past_relative_date(p_value text)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-  select coalesce(p_value,'') ~* '(গতকাল|গত[[:space:]]+(রবিবার|রোববার|সোমবার|মঙ্গলবার|বুধবার|বৃহস্পতিবার|শুক্রবার|শনিবার)|yesterday|last[[:space:]]+(sunday|monday|tuesday|wednesday|thursday|friday|saturday))'
-$function$;
-CREATE OR REPLACE FUNCTION public.news_intake_location_contract_is_valid(p_division text, p_district text, p_upazila text, p_area text, p_road text, p_landmark text, p_address text, p_scope text)
- RETURNS boolean
- LANGUAGE sql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  select
-    public.canonical_division_name(p_division) is not null
-    and public.canonical_district_name(p_district) is not null
-    and case
-      when nullif(btrim(coalesce(p_upazila,'')),'') is not null
-        then public.canonical_upazila_name(p_upazila,p_district) is not null
-      when lower(coalesce(p_scope,''))='district_wide'
-        then true
-      else
-        coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_area),'')),false)
-        or coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_road),'')),false)
-        or coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_landmark),'')),false)
-        or coalesce(public.news_intake_specific_location_text_is_safe(nullif(btrim(p_address),'')),false)
-    end
-$function$;
-CREATE OR REPLACE FUNCTION public.news_intake_privacy_review_required(p_subcategory_id text)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-  select coalesce(p_subcategory_id,'') = any (array[
-    'child_abduction_murder',
-    'ride_sharing_safety',
-    'rape-sexual-violence',
-    'sexual-harassment',
-    'domestic-violence',
-    'blackmail-coercion',
-    'honeytrap'
-  ]::text[]);
-$function$;
-CREATE OR REPLACE FUNCTION public.news_intake_specific_location_has_positive_evidence(p_value text)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-  select case
-    when nullif(btrim(coalesce(p_value,'')),'') is null then false
-    when char_length(btrim(p_value)) < 5 or char_length(btrim(p_value)) > 120 then false
-    when p_value ~ '(^|[[:space:],;:()/–—-])(থানা|উপজেলা|ইউনিয়ন|ইউনিয়ন|বাজার|মার্কেট|এলাকা|মহল্লা|গ্রাম|সড়ক|সড়ক|মহাসড়ক|মহাসড়ক|রোড|লেন|গলি|মোড়|মোড়|রেলগেট|স্টেশন|শহর|নগরী|মহানগরী)(য়|য়|তে|ে|র|ের|এর)?($|[[:space:],.;:।()/–—-])' then true
-    when lower(p_value) ~ '(^|[[:space:],;:()/–—-])(police[[:space:]]+station|thana|upazila|union|market|bazaar|area|neighbou?rhood|village|road|street|lane|avenue|highway|rail[[:space:]]*gate|station|city|metropolitan[[:space:]]+area)($|[[:space:],.;:()/–—-])' then true
-    when btrim(p_value) ~ '^[A-Z][A-Za-z0-9.''’\-]*(?:[[:space:],]+[A-Z0-9][A-Za-z0-9.''’\-]*){0,6}$' then true
-    else false
-  end
-$function$;
-CREATE OR REPLACE FUNCTION public.news_intake_specific_location_text_is_safe(p_value text)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-select case
-  when nullif(btrim(coalesce(p_value,'')),'') is null then false
-  when char_length(btrim(p_value))<5 or char_length(btrim(p_value))>120 then false
-  when lower(btrim(p_value)) ~ '^(area|market|bazaar|thana|upazila|union|village|city|road|street|lane|station)$' then false
-  when lower(btrim(p_value)) ~ '^(on|at|in|near)[[:space:]]+(the[[:space:]]+)?(road|street|lane|area|city|district|station)([[:space:]]+[0-9]+)?$' then false
-  when lower(p_value) ~ '(various|several)[[:space:]]+areas?' then false
-  when p_value ~ '(বিভিন্ন)[[:space:]]+এলাকা' then false
-  when btrim(p_value) ~ '^(?:[০-৯0-9]{1,2}[[:space:]]+)?(?:জানুয়ারি|জানুয়ারি|ফেব্রুয়ারি|ফেব্রুয়ারি|মার্চ|এপ্রিল|মে|জুন|জুলাই|আগস্ট|সেপ্টেম্বর|অক্টোবর|নভেম্বর|ডিসেম্বর|সকাল|দুপুর|বিকেল|সন্ধ্যা|রাত)' then false
-  when lower(btrim(p_value)) ~ '^(?:[0-9]{1,2}[[:space:]]+)?(?:january|february|march|april|may|june|july|august|september|october|november|december|morning|afternoon|evening|night)([[:space:]]|$)' then false
-  when btrim(p_value) ~ '^(গত|পূর্ববর্তী)[[:space:]]+(বছর(ের)?|মাস(ের)?|সপ্তাহ(ের)?|দিন(ের)?)([[:space:]]|$)' then false
-  when lower(btrim(p_value)) ~ '^(last|previous)[[:space:]]+(year|month|week|day)([[:space:]]|$)' then false
-  when p_value ~ '(জেলার).{0,90}([[:space:]]ও[[:space:]]|[[:space:]]এবং[[:space:]]|,).{0,90}(উপজেলা|থানা)' then false
-  when lower(p_value) ~ 'district(''s)? .{0,90}([[:space:]]and[[:space:]]|,).{0,90}(upazila|thana)' then false
-  when p_value ~ '(উপজেলা|থানা).{0,70}([[:space:]]ও[[:space:]]|[[:space:]]এবং[[:space:]]|,).{0,70}(উপজেলা|থানা)' then false
-  when lower(p_value) ~ '(upazila|thana).{0,70}([[:space:]]and[[:space:]]|,).{0,70}(upazila|thana)' then false
-  when lower(p_value) ~ '(collected[[:space:]]+evidence|cordoned[[:space:]]+off|investigat(e|ed|ing|ion)|police[[:space:]]+said|officials?[[:space:]]+said|victims?|the[[:space:]]+victim|was[[:space:]]+arrested|were[[:space:]]+arrested|detained|went[[:space:]]+to[[:space:]]+the[[:space:]]+area|visited[[:space:]]+the[[:space:]]+area)' then false
-  when p_value ~ '(ভুক্তভোগী|পুলিশ[[:space:]]+জানায়|পুলিশ[[:space:]]+জানায়|কর্তৃপক্ষ|তদন্ত|গ্রেপ্তার|আটক|নিহত|আহত|উদ্ধার|জানান|বলেন)' then false
-  when p_value ~ '(ঘটনার|ঘটনায়|ঘটনায়|হত্যার[[:space:]]+ঘটনায়|হত্যার[[:space:]]+ঘটনায়|মামলার|মামলায়|মামলায়).{0,90}(থানা|পুলিশ[[:space:]]+স্টেশন)' then false
-  when lower(p_value) ~ '(incident|case).{0,90}(police[[:space:]]+station|thana)' then false
-  when p_value ~ '(^|[[:space:]])(এদিকে|অন্যদিকে|এ[[:space:]]+ঘটনায়|এ[[:space:]]+ঘটনায়|এই[[:space:]]+ঘটনায়|এই[[:space:]]+ঘটনায়)($|[[:space:]])' then false
-  when p_value ~ '^(র|এর)[[:space:]]+' then false
-  else true
-end
-$function$;
-CREATE OR REPLACE FUNCTION public.normalize_duplicate_text(p_value text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-  select btrim(
-    regexp_replace(
-      regexp_replace(lower(coalesce(p_value, '')), '[[:punct:]]+', ' ', 'g'),
-      '[[:space:]]+',
-      ' ',
-      'g'
-    )
-  );
-$function$;
-CREATE OR REPLACE FUNCTION public.normalize_source_url(p_url text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-  select nullif(
-    regexp_replace(
-      regexp_replace(btrim(coalesce(p_url, '')), '#.*$', ''),
-      '/$',
-      ''
-    ),
-    ''
-  );
 $function$;
 CREATE OR REPLACE FUNCTION public.normalize_sourced_report_location_row()
  RETURNS trigger
@@ -6855,33 +7149,6 @@ BEGIN
     RETURN NEW;
 END;
 $function$;
-CREATE OR REPLACE FUNCTION public.record_public_visit_session(p_visitor_id text, p_session_id text, p_permission_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric, p_accuracy_meters numeric DEFAULT NULL::numeric, p_browser_name text DEFAULT NULL::text, p_browser_version text DEFAULT NULL::text, p_os_name text DEFAULT NULL::text, p_device_category text DEFAULT NULL::text, p_platform text DEFAULT NULL::text, p_language text DEFAULT NULL::text, p_timezone text DEFAULT NULL::text, p_screen_width integer DEFAULT NULL::integer, p_screen_height integer DEFAULT NULL::integer, p_user_agent text DEFAULT NULL::text, p_ui_language text DEFAULT NULL::text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-declare
-  v_ui_language text := lower(nullif(btrim(p_ui_language), ''));
-begin
-  perform set_config(
-    'app.ui_language',
-    case when v_ui_language in ('bn','en') then v_ui_language else '' end,
-    true
-  );
-
-  perform private.enforce_public_rate_limit(
-    'public_visit_session', p_visitor_id, 240, 60, interval '1 hour'
-  );
-
-  return public.record_public_visit_session_internal(
-    p_visitor_id, p_session_id, p_permission_status,
-    p_latitude, p_longitude, p_accuracy_meters,
-    p_browser_name, p_browser_version, p_os_name, p_device_category,
-    p_platform, p_language, p_timezone, p_screen_width, p_screen_height, p_user_agent
-  );
-end;
-$function$;
 CREATE OR REPLACE FUNCTION public.record_public_visit_session_internal(p_visitor_id text, p_session_id text, p_permission_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric, p_accuracy_meters numeric DEFAULT NULL::numeric, p_browser_name text DEFAULT NULL::text, p_browser_version text DEFAULT NULL::text, p_os_name text DEFAULT NULL::text, p_device_category text DEFAULT NULL::text, p_platform text DEFAULT NULL::text, p_language text DEFAULT NULL::text, p_timezone text DEFAULT NULL::text, p_screen_width integer DEFAULT NULL::integer, p_screen_height integer DEFAULT NULL::integer, p_user_agent text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -6960,6 +7227,33 @@ BEGIN
     'permissionStatus', v_permission
   );
 END;
+$function$;
+CREATE OR REPLACE FUNCTION public.record_public_visit_session(p_visitor_id text, p_session_id text, p_permission_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric, p_accuracy_meters numeric DEFAULT NULL::numeric, p_browser_name text DEFAULT NULL::text, p_browser_version text DEFAULT NULL::text, p_os_name text DEFAULT NULL::text, p_device_category text DEFAULT NULL::text, p_platform text DEFAULT NULL::text, p_language text DEFAULT NULL::text, p_timezone text DEFAULT NULL::text, p_screen_width integer DEFAULT NULL::integer, p_screen_height integer DEFAULT NULL::integer, p_user_agent text DEFAULT NULL::text, p_ui_language text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+  v_ui_language text := lower(nullif(btrim(p_ui_language), ''));
+begin
+  perform set_config(
+    'app.ui_language',
+    case when v_ui_language in ('bn','en') then v_ui_language else '' end,
+    true
+  );
+
+  perform private.enforce_public_rate_limit(
+    'public_visit_session', p_visitor_id, 240, 60, interval '1 hour'
+  );
+
+  return public.record_public_visit_session_internal(
+    p_visitor_id, p_session_id, p_permission_status,
+    p_latitude, p_longitude, p_accuracy_meters,
+    p_browser_name, p_browser_version, p_os_name, p_device_category,
+    p_platform, p_language, p_timezone, p_screen_width, p_screen_height, p_user_agent
+  );
+end;
 $function$;
 CREATE OR REPLACE FUNCTION public.register_public_complaint_evidence(p_client_submission_id text, p_storage_path text, p_file_name text, p_file_size_bytes bigint, p_caption text DEFAULT NULL::text)
  RETURNS jsonb
@@ -7546,338 +7840,6 @@ AS $function$
 begin
   new.updated_at = now();
   return new;
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.source_hostname(p_url text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog'
-AS $function$
-  select lower(substring(btrim(coalesce(p_url,'')) from '^https://([^/:?#]+)'));
-$function$;
-CREATE OR REPLACE FUNCTION public.sourced_report_missing_required_fields_internal(p_subcategory_id text, p_report jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-declare
-  v_schema_id uuid;
-  v_field record;
-  v_value jsonb;
-  v_missing jsonb:='[]'::jsonb;
-  v_storage_key text;
-  v_field_key text;
-  v_division text:=nullif(btrim(p_report->>'division'),'');
-  v_district text:=nullif(btrim(p_report->>'district'),'');
-  v_upazila text:=nullif(btrim(p_report->>'upazilaOrThana'),'');
-  v_scope text:=coalesce(nullif(btrim(p_report->'customFieldAnswers'->>'locationScope'),''),'specific');
-  v_has_specific boolean:=false;
-begin
-  select r.id into v_schema_id
-  from public.reporting_form_schemas r
-  where r.scope_type='subcategory'
-    and r.scope_id=p_subcategory_id
-    and r.status='published'
-    and r.engine_mode='schema'
-  order by r.version desc
-  limit 1;
-
-  if v_schema_id is not null then
-    for v_field in
-      select f.field_key,f.storage_key,f.storage_mode,f.label_en,f.label_bn
-      from public.reporting_form_schema_fields f
-      where f.schema_id=v_schema_id and f.active=true and f.required=true
-      order by f.sort_order,f.id
-    loop
-      v_storage_key:=coalesce(nullif(btrim(v_field.storage_key),''),v_field.field_key);
-      v_field_key:=v_field.field_key;
-      v_value:=null;
-      if v_field_key='title' or v_storage_key='title' then
-        v_value:=to_jsonb(coalesce(nullif(btrim(p_report->>'titleBn'),''),nullif(btrim(p_report->>'titleEn'),'')));
-      elsif v_field_key='description' or v_storage_key='description' then
-        v_value:=to_jsonb(coalesce(nullif(btrim(p_report->>'descriptionBn'),''),nullif(btrim(p_report->>'descriptionEn'),'')));
-      elsif v_field_key='location' or v_storage_key='location' or (v_field.storage_mode='system_block' and v_field.field_key='location') then
-        if v_division is not null and v_district is not null then v_value:='true'::jsonb; end if;
-      elsif v_field_key='mob_justice_details' or v_storage_key='mobJusticeDetails' then
-        if jsonb_typeof(p_report->'mobJusticeDetails')='object' and p_report->'mobJusticeDetails'<>'{}'::jsonb then
-          v_value:=p_report->'mobJusticeDetails';
-        end if;
-      else
-        v_value:=coalesce(p_report->v_storage_key,p_report->v_field_key,p_report->'customFieldAnswers'->v_storage_key,p_report->'customFieldAnswers'->v_field_key);
-      end if;
-      if v_value is null
-         or v_value='null'::jsonb
-         or (jsonb_typeof(v_value)='string' and btrim(v_value#>>'{}')='')
-         or (jsonb_typeof(v_value)='array' and jsonb_array_length(v_value)=0)
-         or (jsonb_typeof(v_value)='object' and v_value='{}'::jsonb) then
-        v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
-          'fieldKey',v_field_key,'storageKey',v_storage_key,'labelEn',v_field.label_en,'labelBn',v_field.label_bn
-        ));
-      end if;
-    end loop;
-  end if;
-
-  if v_division is null or public.canonical_division_name(v_division) is null
-     or v_district is null or public.canonical_district_name(v_district) is null then
-    v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
-      'fieldKey','canonicalLocation','storageKey','location',
-      'labelEn','Valid division and district','labelBn','সঠিক বিভাগ ও জেলা'
-    ));
-  end if;
-
-  if v_upazila is not null and public.canonical_upazila_name(v_upazila,v_district) is null then
-    v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
-      'fieldKey','canonicalUpazila','storageKey','upazilaOrThana',
-      'labelEn','Valid upazila / thana','labelBn','সঠিক উপজেলা / থানা'
-    ));
-  end if;
-
-  v_has_specific :=
-    v_upazila is not null
-    or nullif(btrim(p_report->>'area'),'') is not null
-    or nullif(btrim(p_report->>'road'),'') is not null
-    or nullif(btrim(p_report->>'landmark'),'') is not null
-    or (
-      nullif(btrim(p_report->>'formattedAddress'),'') is not null
-      and lower(btrim(p_report->>'formattedAddress')) <> lower(btrim(coalesce(v_district,'')))
-    );
-
-  if not v_has_specific and v_scope <> 'district_wide' then
-    v_missing:=v_missing || jsonb_build_array(jsonb_build_object(
-      'fieldKey','locationSpecificity','storageKey','location',
-      'labelEn','Specific incident location or explicit district-wide scope',
-      'labelBn','নির্দিষ্ট ঘটনার স্থান বা জেলা-ব্যাপী স্কোপ'
-    ));
-  end if;
-
-  return v_missing;
-end
-$function$;
-CREATE OR REPLACE FUNCTION public.sourced_report_schema_validation_errors_internal(p_subcategory_id text, p_report jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE
- SET search_path TO 'pg_catalog', 'public'
-AS $function$
-declare
-  v_schema_id uuid;
-  v_field record;
-  v_value jsonb;
-  v_text text;
-  v_storage_key text;
-  v_errors jsonb:=public.sourced_report_missing_required_fields_internal(p_subcategory_id,p_report);
-  v_numeric numeric;
-  v_min numeric;
-  v_max numeric;
-  v_min_length integer;
-  v_max_length integer;
-begin
-  select r.id into v_schema_id
-  from public.reporting_form_schemas r
-  where r.scope_type='subcategory'
-    and r.scope_id=p_subcategory_id
-    and r.status='published'
-    and r.engine_mode='schema'
-  order by r.version desc
-  limit 1;
-
-  if v_schema_id is null then
-    return v_errors;
-  end if;
-
-  for v_field in
-    select
-      f.field_key,f.field_type,f.storage_mode,f.storage_key,
-      f.label_en,f.label_bn,f.required,
-      coalesce(f.validation,'{}'::jsonb) as validation,
-      coalesce(f.options,'[]'::jsonb) as options
-    from public.reporting_form_schema_fields f
-    where f.schema_id=v_schema_id and f.active=true
-    order by f.sort_order,f.id
-  loop
-    v_storage_key:=coalesce(nullif(btrim(v_field.storage_key),''),v_field.field_key);
-    v_value:=null;
-
-    if v_field.field_key='title' or v_storage_key='title' then
-      v_value:=to_jsonb(coalesce(
-        nullif(btrim(p_report->>'titleBn'),''),
-        nullif(btrim(p_report->>'titleEn'),'')
-      ));
-    elsif v_field.field_key='description' or v_storage_key='description' then
-      v_value:=to_jsonb(coalesce(
-        nullif(btrim(p_report->>'descriptionBn'),''),
-        nullif(btrim(p_report->>'descriptionEn'),'')
-      ));
-    elsif v_field.field_key='location' or v_storage_key='location' then
-      if nullif(btrim(p_report->>'division'),'') is not null
-         and nullif(btrim(p_report->>'district'),'') is not null then
-        v_value:='true'::jsonb;
-      end if;
-    elsif v_field.field_key='mob_justice_details' or v_storage_key='mobJusticeDetails' then
-      if jsonb_typeof(p_report->'mobJusticeDetails')='object'
-         and p_report->'mobJusticeDetails'<>'{}'::jsonb then
-        v_value:=p_report->'mobJusticeDetails';
-      end if;
-    else
-      v_value:=coalesce(
-        p_report -> v_storage_key,
-        p_report -> v_field.field_key,
-        p_report->'customFieldAnswers' -> v_storage_key,
-        p_report->'customFieldAnswers' -> v_field.field_key
-      );
-    end if;
-
-    if v_value is null
-       or v_value='null'::jsonb
-       or (jsonb_typeof(v_value)='string' and btrim(v_value#>>'{}')='')
-       or (jsonb_typeof(v_value)='array' and jsonb_array_length(v_value)=0)
-       or (jsonb_typeof(v_value)='object' and v_value='{}'::jsonb) then
-      continue;
-    end if;
-
-    v_text:=case when jsonb_typeof(v_value)='string' then v_value#>>'{}' else v_value::text end;
-
-    if v_field.field_type='checkbox' and v_field.required=true
-       and lower(coalesce(v_text,''))<>'true' then
-      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','required_true'
-      ));
-      continue;
-    end if;
-
-    if v_field.field_type in ('select','radio') then
-      if not exists(
-        select 1 from jsonb_array_elements(v_field.options) opt
-        where opt->>'value'=v_text
-      ) then
-        v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-          'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-          'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_option'
-        ));
-        continue;
-      end if;
-    elsif v_field.field_type='multiselect' then
-      if jsonb_typeof(v_value)<>'array'
-         or exists(
-           select 1
-           from jsonb_array_elements_text(
-             case when jsonb_typeof(v_value)='array' then v_value else '[]'::jsonb end
-           ) selected(value)
-           where not exists(
-             select 1 from jsonb_array_elements(v_field.options) opt
-             where opt->>'value'=selected.value
-           )
-         ) then
-        v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-          'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-          'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_option'
-        ));
-        continue;
-      end if;
-    end if;
-
-    v_min_length:=nullif(v_field.validation->>'minLength','')::integer;
-    v_max_length:=nullif(v_field.validation->>'maxLength','')::integer;
-
-    if v_min_length is not null and char_length(v_text)<v_min_length then
-      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','min_length'
-      ));
-    end if;
-    if v_max_length is not null and char_length(v_text)>v_max_length then
-      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','max_length'
-      ));
-    end if;
-
-    if v_field.field_type in ('number','currency') then
-      begin
-        v_numeric:=v_text::numeric;
-        v_min:=nullif(v_field.validation->>'min','')::numeric;
-        v_max:=nullif(v_field.validation->>'max','')::numeric;
-        if v_min is not null and v_numeric<v_min then
-          v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-            'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-            'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','min'
-          ));
-        end if;
-        if v_max is not null and v_numeric>v_max then
-          v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-            'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-            'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','max'
-          ));
-        end if;
-      exception when others then
-        v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-          'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-          'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_number'
-        ));
-      end;
-    elsif v_field.field_type='email'
-       and v_text !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
-      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_email'
-      ));
-    elsif v_field.field_type='url'
-       and v_text !~* '^https?://[^[:space:]]+$' then
-      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_url'
-      ));
-    elsif v_field.field_type='phone'
-       and char_length(regexp_replace(v_text,'[^0-9]','','g')) not between 7 and 15 then
-      v_errors:=v_errors || jsonb_build_array(jsonb_build_object(
-        'fieldKey',v_field.field_key,'storageKey',v_storage_key,
-        'labelEn',v_field.label_en,'labelBn',v_field.label_bn,'code','invalid_phone'
-      ));
-    end if;
-  end loop;
-
-  return v_errors;
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.submit_public_complaint(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-declare
-  v_subject text;
-  v_ui_language text := lower(nullif(btrim(coalesce(
-    p_reporter_context->>'ui_language',
-    p_reporter_context->>'uiLanguage',
-    p_payload->'reporterContext'->>'ui_language',
-    p_payload->'reporterContext'->>'uiLanguage',
-    p_payload->'reporter_context'->>'ui_language',
-    p_payload->'reporter_context'->>'uiLanguage'
-  )), ''));
-begin
-  perform set_config(
-    'app.ui_language',
-    case when v_ui_language in ('bn','en') then v_ui_language else '' end,
-    true
-  );
-
-  v_subject := coalesce(
-    nullif(btrim(coalesce(p_reporter_context->>'visitor_id', p_reporter_context->>'visitorId')), ''),
-    nullif(btrim(coalesce(p_payload->'reporterContext'->>'visitor_id', p_payload->'reporterContext'->>'visitorId')), ''),
-    nullif(btrim(p_client_submission_id), '')
-  );
-
-  perform private.enforce_public_rate_limit(
-    'public_report_submit', v_subject, 30, 8, interval '1 hour'
-  );
-
-  return public.submit_public_complaint_internal(
-    p_payload, p_client_submission_id, p_reporter_context
-  );
 end;
 $function$;
 CREATE OR REPLACE FUNCTION public.submit_public_complaint_internal(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
@@ -9746,6 +9708,44 @@ BEGIN
 
 END;
 $function$;
+CREATE OR REPLACE FUNCTION public.submit_public_complaint(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+  v_subject text;
+  v_ui_language text := lower(nullif(btrim(coalesce(
+    p_reporter_context->>'ui_language',
+    p_reporter_context->>'uiLanguage',
+    p_payload->'reporterContext'->>'ui_language',
+    p_payload->'reporterContext'->>'uiLanguage',
+    p_payload->'reporter_context'->>'ui_language',
+    p_payload->'reporter_context'->>'uiLanguage'
+  )), ''));
+begin
+  perform set_config(
+    'app.ui_language',
+    case when v_ui_language in ('bn','en') then v_ui_language else '' end,
+    true
+  );
+
+  v_subject := coalesce(
+    nullif(btrim(coalesce(p_reporter_context->>'visitor_id', p_reporter_context->>'visitorId')), ''),
+    nullif(btrim(coalesce(p_payload->'reporterContext'->>'visitor_id', p_payload->'reporterContext'->>'visitorId')), ''),
+    nullif(btrim(p_client_submission_id), '')
+  );
+
+  perform private.enforce_public_rate_limit(
+    'public_report_submit', v_subject, 30, 8, interval '1 hour'
+  );
+
+  return public.submit_public_complaint_internal(
+    p_payload, p_client_submission_id, p_reporter_context
+  );
+end;
+$function$;
 CREATE OR REPLACE FUNCTION public.submit_public_complaint_v2(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -10044,44 +10044,6 @@ begin
   where id = v_report_id;
 
   return v_result;
-end;
-$function$;
-CREATE OR REPLACE FUNCTION public.submit_public_configured_complaint(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'pg_catalog', 'public', 'private'
-AS $function$
-declare
-  v_subject text;
-  v_ui_language text := lower(nullif(btrim(coalesce(
-    p_reporter_context->>'ui_language',
-    p_reporter_context->>'uiLanguage',
-    p_payload->'reporterContext'->>'ui_language',
-    p_payload->'reporterContext'->>'uiLanguage',
-    p_payload->'reporter_context'->>'ui_language',
-    p_payload->'reporter_context'->>'uiLanguage'
-  )), ''));
-begin
-  perform set_config(
-    'app.ui_language',
-    case when v_ui_language in ('bn','en') then v_ui_language else '' end,
-    true
-  );
-
-  v_subject := coalesce(
-    nullif(btrim(coalesce(p_reporter_context->>'visitor_id', p_reporter_context->>'visitorId')), ''),
-    nullif(btrim(coalesce(p_payload->'reporterContext'->>'visitor_id', p_payload->'reporterContext'->>'visitorId')), ''),
-    nullif(btrim(p_client_submission_id), '')
-  );
-
-  perform private.enforce_public_rate_limit(
-    'public_report_submit', v_subject, 30, 8, interval '1 hour'
-  );
-
-  return public.submit_public_configured_complaint_internal(
-    p_payload, p_client_submission_id, p_reporter_context
-  );
 end;
 $function$;
 CREATE OR REPLACE FUNCTION public.submit_public_configured_complaint_internal(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
@@ -10552,27 +10514,41 @@ begin
   );
 end;
 $function$;
-CREATE OR REPLACE FUNCTION public.submit_public_response(p_report_id text, p_response_type text, p_payload jsonb)
+CREATE OR REPLACE FUNCTION public.submit_public_configured_complaint(p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'private'
 AS $function$
 declare
-  v_report_id text := upper(btrim(coalesce(p_report_id, '')));
   v_subject text;
+  v_ui_language text := lower(nullif(btrim(coalesce(
+    p_reporter_context->>'ui_language',
+    p_reporter_context->>'uiLanguage',
+    p_payload->'reporterContext'->>'ui_language',
+    p_payload->'reporterContext'->>'uiLanguage',
+    p_payload->'reporter_context'->>'ui_language',
+    p_payload->'reporter_context'->>'uiLanguage'
+  )), ''));
 begin
-  v_subject := nullif(btrim(coalesce(p_payload->>'visitorId', p_payload->>'visitor_id', '')), '');
-
-  perform private.enforce_public_rate_limit(
-    'public_response', v_subject, 60, 30, interval '1 hour'
-  );
-  perform private.enforce_public_rate_limit(
-    'public_response:' || left(v_report_id, 64), v_subject, 12, 6, interval '1 hour'
+  perform set_config(
+    'app.ui_language',
+    case when v_ui_language in ('bn','en') then v_ui_language else '' end,
+    true
   );
 
-  return public.submit_public_response_internal(
-    p_report_id, p_response_type, p_payload
+  v_subject := coalesce(
+    nullif(btrim(coalesce(p_reporter_context->>'visitor_id', p_reporter_context->>'visitorId')), ''),
+    nullif(btrim(coalesce(p_payload->'reporterContext'->>'visitor_id', p_payload->'reporterContext'->>'visitorId')), ''),
+    nullif(btrim(p_client_submission_id), '')
+  );
+
+  perform private.enforce_public_rate_limit(
+    'public_report_submit', v_subject, 30, 8, interval '1 hour'
+  );
+
+  return public.submit_public_configured_complaint_internal(
+    p_payload, p_client_submission_id, p_reporter_context
   );
 end;
 $function$;
@@ -11029,6 +11005,30 @@ BEGIN
     'message', 'Response submitted successfully.'
   );
 END;
+$function$;
+CREATE OR REPLACE FUNCTION public.submit_public_response(p_report_id text, p_response_type text, p_payload jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+  v_report_id text := upper(btrim(coalesce(p_report_id, '')));
+  v_subject text;
+begin
+  v_subject := nullif(btrim(coalesce(p_payload->>'visitorId', p_payload->>'visitor_id', '')), '');
+
+  perform private.enforce_public_rate_limit(
+    'public_response', v_subject, 60, 30, interval '1 hour'
+  );
+  perform private.enforce_public_rate_limit(
+    'public_response:' || left(v_report_id, 64), v_subject, 12, 6, interval '1 hour'
+  );
+
+  return public.submit_public_response_internal(
+    p_report_id, p_response_type, p_payload
+  );
+end;
 $function$;
 CREATE OR REPLACE FUNCTION public.submit_public_response_v2(p_report_id text, p_response_type text, p_payload jsonb, p_visitor_id text, p_session_id text)
  RETURNS jsonb

@@ -189,6 +189,34 @@ test('a database publication rejection is fail-closed and known to remain unpubl
   assert.equal(result.blocked[0].outcomeUnknown, false);
 });
 
+test('a partially failed batch keeps confirmed publication separate from rejected publication', async () => {
+  const publishedIds = [];
+  let publicationAttempt = 0;
+  const result = await publishSelectedNewsCandidates([candidate('published'), candidate('rejected')], {
+    previewSourcedReport: async () => readyPreview,
+    createSourcedReport: async (payload) => ({ reportId: `synthetic-${payload.source.canonicalUrl.split('/').at(-1)}` }),
+    completeItemReview: async () => ({ ready: true }),
+    publishComplaint: async (reportId) => {
+      publicationAttempt += 1;
+      if (publicationAttempt === 1) {
+        publishedIds.push(reportId);
+        return;
+      }
+      throw Object.assign(new Error('synthetic publication rejected'), { outcome: 'rejected' });
+    },
+  });
+
+  assert.deepEqual(publishedIds, ['synthetic-published']);
+  assert.deepEqual(result.published, [{ itemId: 'published', reportId: 'synthetic-published' }]);
+  assert.deepEqual(result.blocked, [{
+    itemId: 'rejected',
+    reportId: 'synthetic-rejected',
+    stage: 'publish',
+    outcomeUnknown: false,
+    reason: 'synthetic publication rejected',
+  }]);
+});
+
 test('repeated item identifiers cannot create or publish the same selected candidate twice', async () => {
   const events = [];
   const repeated = candidate('same-item');

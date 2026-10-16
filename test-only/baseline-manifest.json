@@ -32,7 +32,7 @@
   },
   "fixture": {
     "file": "test-only/current_contract_baseline.sql",
-    "sha256": "bde5ba2137a8c2d9215e86ebb8d618a1ac1d6dfdd00521973a32d6ba11196a0a",
+    "sha256": "0a79830810436c52754834e95c19724404c7a8e475543ec93b68b7a7d40112d4",
     "includesApplicationRows": false,
     "includesReporterRecords": false,
     "includesProductionSecrets": false,

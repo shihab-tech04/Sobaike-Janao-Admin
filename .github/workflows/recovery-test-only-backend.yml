@@ -74,6 +74,35 @@ jobs:
           print("Verified database target is loopback-only on port 54322.")
           PY
 
+      - name: Permit Storage-owner role switch in the disposable database only
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The recovered Storage tables belong to Supabase's own Storage role.
+          # Never change their owner or omit their captured grants to pass a test.
+          executor=$(psql "$RECOVERY_LOCAL_DB_URL" --tuples-only --no-align --command 'SELECT current_user')
+          owner=$(psql "$RECOVERY_LOCAL_DB_URL" --tuples-only --no-align --command "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'storage.objects'::regclass")
+          if [[ "$executor" != postgres || "$owner" != supabase_storage_admin ]]; then
+            echo "Refusing local role setup: unexpected executor or Storage table owner."
+            exit 1
+          fi
+
+          # Match exactly the CLI project's local DB container, never a hosted DB.
+          container=$(docker ps --quiet --filter 'name=^/supabase_db_sobaike-admin-recovery-test-only$')
+          if [[ -z "$container" || "$container" == *$'\n'* ]]; then
+            echo "Refusing local role setup: expected exactly one disposable DB container."
+            exit 1
+          fi
+          docker exec "$container" psql -U supabase_admin -d postgres --set ON_ERROR_STOP=1 \
+            --command 'GRANT supabase_storage_admin TO postgres WITH SET TRUE, INHERIT FALSE, ADMIN FALSE'
+
+          can_switch=$(psql "$RECOVERY_LOCAL_DB_URL" --tuples-only --no-align \
+            --command "SELECT pg_has_role(current_user, 'supabase_storage_admin', 'SET')")
+          if [[ "$can_switch" != t ]]; then
+            echo "Storage-owner role switch was not granted in the disposable database."
+            exit 1
+          fi
+
       - name: Apply evidence-derived test-only baseline
         run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/current_contract_baseline.sql
 

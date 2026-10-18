@@ -1,4 +1,4 @@
-# Sobaike Janao — Phase 02 contract audit (in progress)
+# Sobaike Janao — Phase 02 contract audit and closeout
 
 Date: 2026-10-18 UTC. Scope: SQL/Supabase and Public ↔ Admin contracts (GAP-15–21, X01–X07). This is a **read-only catalog audit plus disposable-runner test ledger**, not a production migration or an approval to ship.
 
@@ -49,6 +49,14 @@ The limited local function snapshot omits 92 names, including **31 of the origin
 
 The 189 missing hosted migration bodies cannot be reconstructed solely from the migration ledger, and retroactively making up their SQL would falsify provenance. Search authorized repository history/archives first (the Admin main branch and its migration-specific commit history did not contain the missing set). Retain the original hosted version ledger exactly. If the original scripts remain unavailable, build a **new, versioned, append-only forward reconciliation** derived from the current catalog and explicit contract tests; review it against clean isolated and staging databases, never `db push` the partial repository history to the hosted project, and never reset/drop/rewrite its existing ledger. All runtime changes still require their later phase gates and the separately authorized final production deployment.
 
-## Gate and next action
+## Phase 02 gate and next action
 
-**Phase 02 is OPEN; do not advance to Phase 03.** The real GoTrue password + TOTP AAL2 + Admin RPC → Public feed test **passed** on [GitHub Actions run 39151395806](https://github.com/shihab-tech04/Sobaike-janao-public/actions/runs/39151395806) (test-only commit `26a7a841731ac66b194331f40732a923cc835474`). Restore/verify the missing SQL function definitions and migration provenance from authorized historical sources or a verified, additive replacement plan. Exercise remaining permissions, signatures, Storage, Edge and cron contracts without writing to the hosted DB. Preserve Phase 18 production launch as a distinct final gate.
+**PASS — contract audit/replay gate only (2026-10-18).** The required Public → SQL → Admin caller matrix, live-vs-repository migration ledger, live permission/RLS audit, and executed isolated tests are complete. Key evidence:
+
+- Real GoTrue password + TOTP AAL2 + Admin RPC → Public feed test passed on [run 39151395806](https://github.com/shihab-tech04/Sobaike-janao-public/actions/runs/39151395806), then again on the recovered IP-location source checkpoint [run 39153219935](https://github.com/shihab-tech04/Sobaike-janao-public/actions/runs/39153219935).
+- The 209-function local SQL replay and grants tests passed [run 39153168396](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/39153168396). Recovered Admin account Edge denial checks passed [run 39153736793](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/39153736793).
+- Verified source checkpoints: Public `cdb80af265a163bbdb1a123fe72cc008e2706d53` and Admin `658a12a05dbdb96f0d6cf863388d6956850a4449`, both with successful source CI. Both separate backend-disabled recovery previews were published and browser-verified in EN/BN on [Public preview run 39154254700](https://github.com/shihab-tech04/sobaike-janao-public-recovery-preview/actions/runs/39154254700) and [Admin preview run 39154277235](https://github.com/shihab-tech04/sobaike-janao-admin-recovery-preview/actions/runs/39154277235).
+
+**Explicit unresolved restoration/release risks (not mislabeled as solved):** the 189 historical migration bodies are not in the recovered repositories, and two hosted cron dispatcher definitions remain excluded from the non-production fixture because of hosted URLs. The catalog comparison and additive strategy are documented above; do not attempt a clean production deploy from this subset. Fresh staging migration verification, cron/secrets handling, complete feature journeys, and the Phase 17/18 release gates remain mandatory. The Phase 02 *audit contract* passed; a full production-grade backend reconstruction is **not yet certified**.
+
+Proceed to Phase 03 design/navigation restoration using the immutable checkpoints. Production remains unchanged.

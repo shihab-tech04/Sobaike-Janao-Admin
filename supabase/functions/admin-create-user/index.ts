@@ -1,10 +1,57 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.112.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+const ALLOWED_ORIGINS = new Set([
+  "https://shihabshajib01-cell.github.io",
+  "https://admin.shobaikejanao.com",
+  "https://shobaikejanao.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+]);
+
+const corsHeadersFor = (req: Request) => {
+  const origin = req.headers.get("Origin") || "";
+  return {
+    ...(ALLOWED_ORIGINS.has(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+};
+
+
+const sha1Hex = async (value: string): Promise<string> => {
+  const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+};
+
+const isCompromisedPassword = async (password: string): Promise<boolean> => {
+  const hash = await sha1Hex(password);
+  const prefix = hash.slice(0, 5);
+  const suffix = hash.slice(5);
+
+  const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+    method: "GET",
+    headers: {
+      "Accept": "text/plain",
+      "Add-Padding": "true",
+      "User-Agent": "Sobaike-Janao-Admin-Password-Safety/1.0",
+    },
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) {
+    throw new Error("PASSWORD_REPUTATION_UNAVAILABLE");
+  }
+
+  const body = await response.text();
+  return body.split(/\r?\n/).some((line) => {
+    const [candidateSuffix] = line.split(":");
+    return candidateSuffix?.trim().toUpperCase() === suffix;
+  });
 };
 
 interface CreateUserRequestBody {
@@ -16,6 +63,7 @@ interface CreateUserRequestBody {
 }
 
 serve(async (req: Request) => {
+  const corsHeaders = corsHeadersFor(req);
   // 1. Handle CORS Preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -102,13 +150,36 @@ serve(async (req: Request) => {
     }
 
     // Password validation
-    if (!cleanPassword || cleanPassword.length < 6) {
+    if (!cleanPassword || cleanPassword.length < 12) {
       return new Response(
         JSON.stringify({
-          error: "Password must be at least 6 characters long.",
+          error: "Password must be at least 12 characters long.",
           code: "WEAK_PASSWORD",
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Reject known breached passwords using HIBP's k-anonymity range API.
+    // Only the first 5 characters of a SHA-1 hash leave this Edge Function.
+    try {
+      if (await isCompromisedPassword(cleanPassword)) {
+        return new Response(
+          JSON.stringify({
+            error: "This password has appeared in a known data breach. Choose a different password.",
+            code: "COMPROMISED_PASSWORD",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch (passwordSafetyError) {
+      console.error("Password reputation check failed:", passwordSafetyError);
+      return new Response(
+        JSON.stringify({
+          error: "Password safety verification is temporarily unavailable. Please try again.",
+          code: "PASSWORD_REPUTATION_UNAVAILABLE",
+        }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

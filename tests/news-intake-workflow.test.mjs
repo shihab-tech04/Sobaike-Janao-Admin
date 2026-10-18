@@ -443,5 +443,6 @@ test('recovered Admin pages localize status and error copy for Bengali mode', as
     assert.match(page, /fontFamily: baseTokens\.typography\.fontFamily\.bengali/);
     assert.doesNotMatch(page, /fontFamily: '"Hind Siliguri"/);
   }
-  assert.match(themeTokens, /bengali: '"Hind Siliguri"/);
+  assert.match(themeTokens, /bengali: '"Noto Sans Bengali"/);
+  assert.match(themeTokens, /sans: '"Noto Sans"/);
 });

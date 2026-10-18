@@ -200,8 +200,8 @@ export const baseTokens: ThemeTokens = {
   },
   typography: {
     fontFamily: {
-      sans: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      bengali: '"Hind Siliguri", "Noto Sans Bengali", "Kalpurush", system-ui, -apple-system, sans-serif',
+      sans: '"Noto Sans", "Noto Sans Bengali", system-ui, -apple-system, sans-serif',
+      bengali: '"Noto Sans Bengali", "Noto Sans", system-ui, -apple-system, sans-serif',
       mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     },
     scale: {

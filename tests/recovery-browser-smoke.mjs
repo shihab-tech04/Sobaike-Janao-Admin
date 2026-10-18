@@ -9,7 +9,7 @@ const baseUrl = process.env.RECOVERY_BROWSER_BASE_URL;
 assert.equal(app, 'admin');
 assert.ok(baseUrl, 'RECOVERY_BROWSER_BASE_URL must point to the loopback Vite server');
 
-const widths = [360, 768, 1280];
+const widths = [360, 390, 768, 1280, 1536];
 const browser = await chromium.launch({ headless: true });
 const screenshotDir = join(process.env.RUNNER_TEMP || tmpdir(), 'sobaike-responsive-smoke');
 await mkdir(screenshotDir, { recursive: true });
@@ -40,24 +40,47 @@ try {
     };
     await assertNoHorizontalOverflow('en');
     let screenshot = await page.screenshot({
-      path: join(screenshotDir, `admin-${width}-en.png`),
+      path: join(screenshotDir, `admin-${width}-en-light.png`),
       animations: 'disabled',
     });
     assert.ok(screenshot.byteLength > 1000, `English viewport screenshot was unexpectedly small at ${width}px`);
+
+    const controls = page.locator('header button');
+    for (let i = 0; i < await controls.count(); i++) {
+      const dimensions = await controls.nth(i).boundingBox();
+      assert.ok(dimensions && dimensions.height >= 44 && dimensions.width >= 44, `Admin header control ${i} at ${width}px must meet 44px touch target`);
+    }
+    assert.match(await page.locator('body').evaluate((el) => getComputedStyle(el).fontFamily), /Noto Sans/);
+    await page.locator('header button[title="Switch to Dark Mode"]').click();
+    assert.ok(await page.locator('html').evaluate((el) => el.classList.contains('dark')));
+    screenshot = await page.screenshot({
+      path: join(screenshotDir, `admin-${width}-en-dark.png`),
+      animations: 'disabled',
+    });
+    assert.ok(screenshot.byteLength > 1000);
+    await assertNoHorizontalOverflow('en dark');
 
     await page.locator('header button[title="Switch Language"]').click();
     assert.equal((await page.locator('label[for="login-email"]').innerText()).trim(), 'ইমেল');
     await page.getByRole('button', { name: 'লগইন', exact: true }).waitFor({ state: 'visible' });
     await assertNoHorizontalOverflow('bn');
     screenshot = await page.screenshot({
-      path: join(screenshotDir, `admin-${width}-bn.png`),
+      path: join(screenshotDir, `admin-${width}-bn-dark.png`),
       animations: 'disabled',
     });
     assert.ok(screenshot.byteLength > 1000, `Bengali viewport screenshot was unexpectedly small at ${width}px`);
+    assert.match(await page.locator('body').evaluate((el) => getComputedStyle(el).fontFamily), /Noto Sans Bengali/);
+    await page.locator('header button[title="Switch to Light Mode"]').click();
+    await assertNoHorizontalOverflow('bn light');
+    screenshot = await page.screenshot({
+      path: join(screenshotDir, `admin-${width}-bn-light.png`),
+      animations: 'disabled',
+    });
+    assert.ok(screenshot.byteLength > 1000);
     await context.close();
   }
   assert.deepEqual([...supabaseHosts], [], 'browser smoke must not contact any hosted Supabase project');
-  console.log(`Responsive Admin login EN/BN smoke passed at ${widths.join(', ')} CSS pixels. Screenshots were rendered locally; no hosted data was requested.`);
+  console.log(`Responsive Admin login EN/BN × light/dark and 44px control smoke passed at ${widths.join(', ')} CSS pixels. No hosted data requested.`);
 } finally {
   await browser.close();
 }

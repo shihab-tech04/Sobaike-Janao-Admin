@@ -11,8 +11,9 @@
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
-  --primary-default: #0284c7;
-  --primary-hover: #0369a1;
+  --primary-default: #1B4D6B;
+  --primary-hover: #153e57;
+  --brand-teal: #38AD8C;
   --status-success: #16a34a;
   --status-warning: #d97706;
   --status-error: #dc2626;
@@ -31,8 +32,9 @@
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  --primary-default: #38bdf8;
-  --primary-hover: #0284c7;
+  --primary-default: #38AD8C;
+  --primary-hover: #5bc7a8;
+  --brand-teal: #38AD8C;
   --status-success: #22c55e;
   --status-warning: #f59e0b;
   --status-error: #ef4444;
@@ -42,9 +44,13 @@
 body {
   background-color: var(--bg-default);
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "Noto Sans", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html[lang="bn"] body {
+  font-family: "Noto Sans Bengali", "Noto Sans", system-ui, -apple-system, sans-serif;
 }
 
 /* Base scrollbar styling */

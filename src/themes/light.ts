@@ -7,10 +7,10 @@ import { ColorTokens, baseTokens } from './tokens';
  */
 export const lightColors: ColorTokens = {
   primary: {
-    DEFAULT: '#0284c7', // Sky-600 (Sobai Ke Janao civic blue)
-    hover: '#0369a1',   // Sky-700
-    active: '#075985',  // Sky-800
-    subtle: '#f0f9ff',  // Sky-50
+    DEFAULT: '#1B4D6B', // Approved Sobaike Janao civic blue
+    hover: '#153e57',
+    active: '#103249',
+    subtle: '#e9f3f5',
     foreground: '#ffffff',
   },
   secondary: {
@@ -41,7 +41,7 @@ export const lightColors: ColorTokens = {
     subtle: '#f1f5f9',  // Slate-100
     DEFAULT: '#e2e8f0', // Slate-200
     strong: '#cbd5e1',  // Slate-300
-    focus: '#0284c7',   // Sky-600
+    focus: '#1B4D6B',
   },
   text: {
     primary: '#0f172a',   // Slate-900 high contrast

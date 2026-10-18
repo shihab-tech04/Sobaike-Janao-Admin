@@ -25,7 +25,7 @@ AS $function$
       AND p_storage_path LIKE
         'public-submissions/' || c.client_submission_id || '/%'
   );
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.can_upload_public_evidence(p_storage_path text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.count_effective_role_managers()
@@ -52,7 +52,7 @@ AS $function$
               AND rp.permission_id = 'roles.manage'
           )
       );
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.count_effective_role_managers() FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.generate_role_slug(p_name text)
@@ -80,7 +80,7 @@ BEGIN
 
     RETURN v_slug;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.generate_role_slug(p_name text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.get_public_category_popularity()
@@ -140,7 +140,7 @@ AS $function$
     ordered.effective_rank
   from ordered
   order by ordered.effective_rank;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_category_popularity() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_category_popularity() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_category_popularity() TO authenticated;
@@ -186,7 +186,7 @@ BEGIN
 
   RETURN v_result;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_feed_update_state(p_since timestamp with time zone, p_district text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_feed_update_state(p_since timestamp with time zone, p_district text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_feed_update_state(p_since timestamp with time zone, p_district text) TO authenticated;
@@ -922,7 +922,7 @@ begin
     'totalCount',v_total_count
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_home_feed_page(p_visitor_lat double precision, p_visitor_lng double precision, p_filter text, p_district text, p_offset integer, p_limit integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_home_feed_page(p_visitor_lat double precision, p_visitor_lng double precision, p_filter text, p_district text, p_offset integer, p_limit integer) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_home_feed_page(p_visitor_lat double precision, p_visitor_lng double precision, p_filter text, p_district text, p_offset integer, p_limit integer) TO authenticated;
@@ -949,7 +949,7 @@ AS $function$
   )
   select coalesce(jsonb_agg(items.item || jsonb_build_object('viewCount', items.view_count, 'shareCount', items.share_count) order by case when items.requested_filter = 'popular' then items.view_count end desc nulls last, case when items.requested_filter = 'popular' then items.share_count end desc nulls last, case when items.requested_filter = 'most_shared' then items.share_count end desc nulls last, case when items.requested_filter = 'most_shared' then items.view_count end desc nulls last, items.ordinality), '[]'::jsonb)
   from items;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_home_feed_with_engagement(p_visitor_lat double precision, p_visitor_lng double precision, p_filter text, p_district text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_home_feed_with_engagement(p_visitor_lat double precision, p_visitor_lng double precision, p_filter text, p_district text) TO service_role;
 
@@ -964,7 +964,7 @@ AS $function$
   select case when base.payload is null or jsonb_typeof(base.payload) <> 'object' then base.payload else base.payload || jsonb_build_object('viewCount', coalesce(c.public_view_count, 0), 'shareCount', coalesce(c.public_share_count, 0)) end
   from base
   left join public.complaints c on c.id = base.payload ->> 'id' and c.status = 'published';
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_published_report_with_engagement(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_published_report_with_engagement(p_report_id text) TO service_role;
 
@@ -980,7 +980,7 @@ AS $function$
   select coalesce(jsonb_agg(items.item || jsonb_build_object('viewCount', coalesce(c.public_view_count, 0), 'shareCount', coalesce(c.public_share_count, 0)) order by items.ordinality), '[]'::jsonb)
   from items
   left join public.complaints c on c.id = items.item ->> 'id' and c.status = 'published';
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_published_reports_with_engagement() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_published_reports_with_engagement() TO service_role;
 
@@ -1041,7 +1041,7 @@ AS $function$
       '[]'::jsonb
     )
   );
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_report_configured_fields(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_report_configured_fields(p_report_id text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_report_configured_fields(p_report_id text) TO authenticated;
@@ -1056,7 +1056,7 @@ AS $function$
   select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'viewCount', c.public_view_count, 'shareCount', c.public_share_count) order by c.created_at desc, c.id desc), '[]'::jsonb)
   from public.complaints as c
   where c.status = 'published';
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_report_engagement_counts() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_report_engagement_counts() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_report_engagement_counts() TO authenticated;
@@ -1082,7 +1082,7 @@ AS $function$
       FROM unnest(COALESCE(p_report_ids, ARRAY[]::text[])) AS requested_id
       WHERE upper(btrim(requested_id)) = upper(c.id)
     );
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_report_origins(p_report_ids text[]) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_report_origins(p_report_ids text[]) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_report_origins(p_report_ids text[]) TO authenticated;
@@ -1126,7 +1126,7 @@ begin
 
   return v_result;
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_report_sources(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_report_sources(p_report_id text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_report_sources(p_report_id text) TO authenticated;
@@ -1202,7 +1202,7 @@ begin
     'forms',v_forms
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_reporting_configuration() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_reporting_configuration() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_reporting_configuration() TO authenticated;
@@ -1253,7 +1253,7 @@ begin
 
   return v_result;
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_segment_feed(p_segment text, p_visitor_lat double precision, p_visitor_lng double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_segment_feed(p_segment text, p_visitor_lat double precision, p_visitor_lng double precision) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_segment_feed(p_segment text, p_visitor_lat double precision, p_visitor_lng double precision) TO authenticated;
@@ -1287,7 +1287,7 @@ begin
 
   return coalesce(v_result,'{}'::jsonb);
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.get_public_sexual_harassment_context(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_public_sexual_harassment_context(p_report_id text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_sexual_harassment_context(p_report_id text) TO authenticated;
@@ -1307,7 +1307,7 @@ AS $function$
     WHERE e.storage_path = p_storage_path
       AND c.status = 'published'
   );
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.is_public_published_evidence(p_storage_path text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.localize_district_name(p_value text, p_lang text)
@@ -1321,7 +1321,7 @@ AS $function$
   from public.bangladesh_districts d
   where d.name_en=public.canonical_district_name(p_value)
   limit 1
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.localize_district_name(p_value text, p_lang text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.localize_district_name(p_value text, p_lang text) TO anon;
 GRANT EXECUTE ON FUNCTION public.localize_district_name(p_value text, p_lang text) TO authenticated;
@@ -1338,7 +1338,7 @@ AS $function$
   from public.bangladesh_divisions d
   where d.name_en=public.canonical_division_name(p_value)
   limit 1
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.localize_division_name(p_value text, p_lang text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.localize_division_name(p_value text, p_lang text) TO anon;
 GRANT EXECUTE ON FUNCTION public.localize_division_name(p_value text, p_lang text) TO authenticated;
@@ -1357,7 +1357,7 @@ AS $function$
   where u.name_en=public.canonical_upazila_name(p_value,p_district)
     and (public.canonical_district_id(p_district) is null or d.id=public.canonical_district_id(p_district))
   limit 1
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.localize_upazila_name(p_value text, p_district text, p_lang text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.localize_upazila_name(p_value text, p_district text, p_lang text) TO anon;
 GRANT EXECUTE ON FUNCTION public.localize_upazila_name(p_value text, p_district text, p_lang text) TO authenticated;
@@ -1384,7 +1384,7 @@ begin
   return lower(btrim(coalesce(p_stored,'')))=v_req
     or lower(btrim(coalesce(p_stored,''))) like '%'||v_req||'%';
 end
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.location_district_matches(p_stored text, p_requested text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.location_district_matches(p_stored text, p_requested text) TO anon;
 GRANT EXECUTE ON FUNCTION public.location_district_matches(p_stored text, p_requested text) TO authenticated;
@@ -1419,7 +1419,7 @@ BEGIN
      END IF;
   END LOOP;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.sanitize_audit_details(p_val jsonb)
@@ -1471,7 +1471,7 @@ BEGIN
         RETURN p_val;
     END IF;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.sanitize_audit_details(p_val jsonb) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.track_public_report_share(p_report_id text)
@@ -1511,7 +1511,7 @@ begin
     'shareCount', coalesce(v_share_count, 0)
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.track_public_report_share(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.track_public_report_share_internal(p_report_id text)
@@ -1541,7 +1541,7 @@ begin
     'shareCount', v_share_count
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.track_public_report_share_internal(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.track_public_report_share_internal(p_report_id text) TO service_role;
 
@@ -1583,7 +1583,7 @@ begin
     'shareCount', coalesce(v_share_count, 0)
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.track_public_report_share_v2(p_report_id text, p_visitor_id text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.track_public_report_view(p_report_id text)
@@ -1623,7 +1623,7 @@ begin
     'shareCount', coalesce(v_share_count, 0)
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.track_public_report_view(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.track_public_report_view_internal(p_report_id text)
@@ -1653,7 +1653,7 @@ begin
     'shareCount', v_share_count
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.track_public_report_view_internal(p_report_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.track_public_report_view_internal(p_report_id text) TO service_role;
 
@@ -1695,7 +1695,7 @@ begin
     'shareCount', coalesce(v_share_count, 0)
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.track_public_report_view_v2(p_report_id text, p_visitor_id text) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.validate_reporting_form_fields(p_fields jsonb)
@@ -1829,5 +1829,5 @@ begin
     raise exception 'Every form must keep the required Description storage field.' using errcode='22023';
   end if;
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.validate_reporting_form_fields(p_fields jsonb) FROM PUBLIC, anon, authenticated, service_role;

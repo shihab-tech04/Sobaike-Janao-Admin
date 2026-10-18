@@ -31,7 +31,7 @@ BEGIN
     FROM public.roles r
     ORDER BY r.name_en ASC;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_get_user_filter_roles() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_get_user_filter_roles() TO authenticated;
 
@@ -178,7 +178,7 @@ BEGIN
     'offset', v_offset
   );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_get_users(p_search text, p_role_id text, p_status text, p_limit integer, p_offset integer, p_sort_by text, p_sort_direction text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_get_users(p_search text, p_role_id text, p_status text, p_limit integer, p_offset integer, p_sort_by text, p_sort_direction text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_get_users(p_search text, p_role_id text, p_status text, p_limit integer, p_offset integer, p_sort_by text, p_sort_direction text) TO service_role;
@@ -347,7 +347,7 @@ BEGIN
     'total_count', COALESCE(v_total_count, 0)
   );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_list_audit_logs(p_limit integer, p_offset integer, p_search text, p_action text, p_target_type text, p_actor_id uuid, p_date_from timestamp with time zone, p_date_to timestamp with time zone, p_sort_by text, p_sort_direction text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_list_audit_logs(p_limit integer, p_offset integer, p_search text, p_action text, p_target_type text, p_actor_id uuid, p_date_from timestamp with time zone, p_date_to timestamp with time zone, p_sort_by text, p_sort_direction text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_audit_logs(p_limit integer, p_offset integer, p_search text, p_action text, p_target_type text, p_actor_id uuid, p_date_from timestamp with time zone, p_date_to timestamp with time zone, p_sort_by text, p_sort_direction text) TO service_role;
@@ -374,7 +374,7 @@ BEGIN
       OR (p_category NOT IN ('security','configuration','administration') AND n.category=p_category))
     AND (p_before_created_at IS NULL OR (n.created_at,n.id)<(p_before_created_at,COALESCE(p_before_id,'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
   ORDER BY n.created_at DESC,n.id DESC LIMIT v_safe_limit;
-END;$function$
+END;$function$;
 REVOKE ALL ON FUNCTION public.admin_list_notifications(p_limit integer, p_before_created_at timestamp with time zone, p_before_id uuid, p_unread_only boolean, p_category text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_list_notifications(p_limit integer, p_before_created_at timestamp with time zone, p_before_id uuid, p_unread_only boolean, p_category text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_notifications(p_limit integer, p_before_created_at timestamp with time zone, p_before_id uuid, p_unread_only boolean, p_category text) TO service_role;
@@ -446,7 +446,7 @@ BEGIN
         r.is_system DESC,
         r.name_en ASC;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_list_roles() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_list_roles() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_roles() TO service_role;
@@ -491,7 +491,7 @@ BEGIN
 
     RETURN v_updated_count;
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_mark_all_notifications_read() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_mark_all_notifications_read() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_mark_all_notifications_read() TO service_role;
@@ -538,7 +538,7 @@ BEGIN
 
     RETURN (v_updated_count > 0);
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_mark_notification_read(p_notification_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_mark_notification_read(p_notification_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_mark_notification_read(p_notification_id uuid) TO service_role;
@@ -639,7 +639,7 @@ exception
     raise exception 'SOURCE_ALREADY_EXISTS: This source is already attached to another report.'
       using errcode='23505';
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_merge_intake_source(p_complaint_id text, p_source jsonb) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_merge_intake_source(p_complaint_id text, p_source jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_merge_intake_source(p_complaint_id text, p_source jsonb) TO service_role;
@@ -709,7 +709,7 @@ begin
     (select config_status from public.subcategories where id=v_sub.id)
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_move_subcategory(p_subcategory_id text, p_target_segment_id text, p_sort_order integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_move_subcategory(p_subcategory_id text, p_target_segment_id text, p_sort_order integer) TO authenticated;
 
@@ -775,7 +775,7 @@ begin
     'success',true,'schemaId',v_draft.id,'version',v_draft.version,'status','published'
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_publish_reporting_form(p_subcategory_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_publish_reporting_form(p_subcategory_id text) TO authenticated;
 
@@ -877,7 +877,7 @@ BEGIN
         'published_at', v_now
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_publish_response(p_response_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_publish_response(p_response_id text) TO authenticated;
 
@@ -966,7 +966,7 @@ begin
 
   return jsonb_build_object('success',true,'itemType',v_type,'id',p_item_id,'active',true,'configStatus','published');
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_publish_taxonomy_item(p_item_type text, p_item_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_publish_taxonomy_item(p_item_type text, p_item_id text) TO authenticated;
 
@@ -1097,7 +1097,7 @@ BEGIN
         'previous_status', v_complaint.status
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_reject_complaint(p_complaint_id text, p_reason_code text, p_note text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_reject_complaint(p_complaint_id text, p_reason_code text, p_note text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_reject_complaint(p_complaint_id text, p_reason_code text, p_note text) TO service_role;
@@ -1180,7 +1180,7 @@ BEGIN
         'updated_at', v_now
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_reject_response(p_response_id text, p_note text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_reject_response(p_response_id text, p_note text) TO authenticated;
 
@@ -1476,7 +1476,7 @@ BEGIN
           v_updated_at
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_replace_role_permissions(p_role_id text, p_permission_ids text[]) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_replace_role_permissions(p_role_id text, p_permission_ids text[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_replace_role_permissions(p_role_id text, p_permission_ids text[]) TO service_role;
@@ -1573,7 +1573,7 @@ BEGIN
         'published_at', v_response.published_at
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_resubmit_response(p_response_id text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_resubmit_response(p_response_id text) TO authenticated;
 
@@ -1681,7 +1681,7 @@ BEGIN
     'message', 'Public presentation draft saved.'
   );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_save_publication_draft(p_complaint_id text, p_public_title_bn text, p_public_title_en text, p_public_summary_bn text, p_public_summary_en text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_save_publication_draft(p_complaint_id text, p_public_title_bn text, p_public_title_en text, p_public_summary_bn text, p_public_summary_en text) TO authenticated;
 
@@ -1774,7 +1774,7 @@ begin
     'fieldCount',jsonb_array_length(p_fields),'status','draft'
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_save_reporting_form_draft(p_subcategory_id text, p_fields jsonb, p_notes text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_save_reporting_form_draft(p_subcategory_id text, p_fields jsonb, p_notes text) TO authenticated;
 
@@ -1825,7 +1825,7 @@ begin
     'nextAutoDueAt',v_row.next_auto_due_at
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_set_news_intake_auto_update(p_enabled boolean) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_news_intake_auto_update(p_enabled boolean) TO authenticated;
 
@@ -1958,7 +1958,7 @@ BEGIN
         'previous_status', v_complaint.status
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_unpublish_complaint(p_complaint_id text, p_reason text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_unpublish_complaint(p_complaint_id text, p_reason text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_unpublish_complaint(p_complaint_id text, p_reason text) TO service_role;
@@ -2042,7 +2042,7 @@ BEGIN
         'published_at', v_response.published_at
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_unpublish_response(p_response_id text, p_reason text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_unpublish_response(p_response_id text, p_reason text) TO authenticated;
 
@@ -2700,7 +2700,7 @@ BEGIN
             v_updated_role.updated_at
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_update_role(p_role_id text, p_name_en text, p_name_bn text, p_active boolean, p_permission_ids text[], p_description text, p_update_description boolean, p_update_name_bn boolean) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_update_role(p_role_id text, p_name_en text, p_name_bn text, p_active boolean, p_permission_ids text[], p_description text, p_update_description boolean, p_update_name_bn boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_update_role(p_role_id text, p_name_en text, p_name_bn text, p_active boolean, p_permission_ids text[], p_description text, p_update_description boolean, p_update_name_bn boolean) TO service_role;
@@ -2783,7 +2783,7 @@ begin
 
   return jsonb_build_object('success',true,'item',v_after);
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_update_taxonomy_configuration(p_item_type text, p_item_id text, p_payload jsonb) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_update_taxonomy_configuration(p_item_type text, p_item_id text, p_payload jsonb) TO authenticated;
 
@@ -2875,7 +2875,7 @@ begin
       end
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_update_taxonomy_full(p_item_type text, p_item_id text, p_parent_segment_id text, p_name_en text, p_name_bn text, p_active boolean, p_sort_order integer, p_payload jsonb) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_update_taxonomy_full(p_item_type text, p_item_id text, p_parent_segment_id text, p_name_en text, p_name_bn text, p_active boolean, p_sort_order integer, p_payload jsonb) TO authenticated;
 
@@ -3047,7 +3047,7 @@ begin
     'item', v_after
   );
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_update_taxonomy_item(p_item_type text, p_item_id text, p_name_en text, p_name_bn text, p_active boolean, p_sort_order integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_update_taxonomy_item(p_item_type text, p_item_id text, p_name_en text, p_name_bn text, p_active boolean, p_sort_order integer) TO authenticated;
 
@@ -3559,7 +3559,7 @@ BEGIN
             v_updated_at
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.admin_update_user(p_user_id uuid, p_display_name text, p_role_id text, p_active boolean) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_update_user(p_user_id uuid, p_display_name text, p_role_id text, p_active boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_update_user(p_user_id uuid, p_display_name text, p_role_id text, p_active boolean) TO service_role;
@@ -3581,7 +3581,7 @@ begin
   if v is not null then return v; end if;
   return public.localize_district_name(p_district,v_lang);
 end
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.build_public_area(p_area text, p_upazila text, p_district text, p_lang text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.build_public_area(p_area text, p_upazila text, p_district text, p_lang text) TO anon;
 GRANT EXECUTE ON FUNCTION public.build_public_area(p_area text, p_upazila text, p_district text, p_lang text) TO authenticated;
@@ -3623,7 +3623,7 @@ begin
   if array_length(v_parts,1) is null then return null; end if;
   return array_to_string(v_parts,', ');
 end
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.build_public_location(p_formatted text, p_road text, p_area text, p_landmark text, p_upazila text, p_district text, p_lang text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.build_public_location(p_formatted text, p_road text, p_area text, p_landmark text, p_upazila text, p_district text, p_lang text) TO anon;
 GRANT EXECUTE ON FUNCTION public.build_public_location(p_formatted text, p_road text, p_area text, p_landmark text, p_upazila text, p_district text, p_lang text) TO authenticated;
@@ -3690,7 +3690,7 @@ BEGIN
         )
     );
 END;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.can_delegate_permission_set(p_permission_ids text[]) FROM PUBLIC, anon, authenticated, service_role;
 
 -- public.can_manage_roles()
@@ -3723,5 +3723,5 @@ begin
 
     return public.has_permission('roles.manage');
 end;
-$function$
+$function$;
 REVOKE ALL ON FUNCTION public.can_manage_roles() FROM PUBLIC, anon, authenticated, service_role;

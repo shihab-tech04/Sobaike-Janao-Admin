@@ -69,7 +69,17 @@ sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
 ('responses.reject', 'responses', 'reject', 'Synthetic Response Reject', 'প্রতিক্রিয়া বাতিল'),
 ('responses.unpublish', 'responses', 'unpublish', 'Synthetic Response Unpublish', 'প্রতিক্রিয়া অপ্রকাশ')`);
 sql(`INSERT INTO public.admin_users(user_id, active, is_super_admin, display_name)
-  VALUES ('${userId}', true, true, 'Synthetic Moderation Operator')`);
+  VALUES ('${userId}', true, false, 'Synthetic Delegated Moderator')`);
+// Preserve the one-protected-Super-Admin invariant from Phase09. Exercise a
+// normal delegated Admin with only the six necessary moderation permissions.
+const roleId = `synthetic_moderator_${suffix}`;
+sql(`INSERT INTO public.roles(id, name_en, name_bn, active, is_system)
+  VALUES ('${roleId}', 'Synthetic Moderation Role', 'পরীক্ষামূলক মডারেটর', true, false)`);
+sql(`INSERT INTO public.role_permissions(role_id, permission_id)
+  SELECT '${roleId}', id FROM public.permissions WHERE id IN (
+    'complaints.publish','complaints.unpublish','complaints.reject',
+    'responses.publish','responses.reject','responses.unpublish')`);
+sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
 
 // Existing synthetic taxonomy fixture defines public_safety. No real data is copied.
 sql(`INSERT INTO public.subcategories(id, segment_id, name_en, name_bn, active, sort_order)

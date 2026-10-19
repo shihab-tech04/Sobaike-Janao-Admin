@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Divider } from '@/components/ui/Divider';
 import { categoryApi } from '@/services/api/categoryApi';
 import { CategoryEditModal } from './CategoryEditModal';
+import { CategoryConfigurationModal } from './CategoryConfigurationModal';
 import {
   Folder,
   Tag,
@@ -26,6 +27,7 @@ import {
   MoveRight,
   Send,
   ListChecks,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export type DetailDrawerTarget =
@@ -59,6 +61,7 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   const [isMoveOpen, setIsMoveOpen] = useState(false);
   const [targetSegmentId, setTargetSegmentId] = useState('');
   const [publishConfirm, setPublishConfirm] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   if (!target) return null;
 
@@ -150,6 +153,10 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       footer={
         canManage ? (
           <div className="flex gap-2 justify-end flex-wrap">
+            <Button id="taxonomy-config-open" type="button" variant="secondary" onClick={() => setIsConfigOpen(true)}
+              leftIcon={<SlidersHorizontal className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'কনফিগারেশন' : 'Configure'}
+            </Button>
             {target.type === 'subcategory' && onOpenForm && <Button id="taxonomy-form-open" type="button" variant="secondary"
               onClick={() => onOpenForm(target.data, target.parentSegment?.status === 'active')}
               leftIcon={<ListChecks className="w-3.5 h-3.5" />} className="min-h-[44px]">
@@ -360,6 +367,8 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       onClose={handleCloseEdit}
       onSave={handleSave}
     />
+    <CategoryConfigurationModal itemType={target.type} itemId={isConfigOpen ? target.data.id : null}
+      onClose={() => setIsConfigOpen(false)} onSaved={() => onUpdated?.()} />
     <Modal isOpen={publishConfirm} onClose={isSaving ? () => {} : () => setPublishConfirm(false)}
       title={isBn ? 'প্রকাশ নিশ্চিত করুন' : 'Confirm taxonomy publication'} size="md"
       footer={<div className="flex gap-2 justify-end w-full">

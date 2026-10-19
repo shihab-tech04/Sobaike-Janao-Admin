@@ -79,6 +79,13 @@ const created = unwrap(await admin.rpc('admin_create_taxonomy_item', {
 }), 'create inactive form-bearing subcategory');
 assert.equal(created.item.active, false);
 assert.equal(created.item.config_status, 'draft');
+const taxonomyConfig = unwrap(await admin.rpc('admin_get_taxonomy_configuration'), 'read authorized configuration');
+assert.ok(taxonomyConfig.subcategories.some((row) => row.id === subId));
+const configured = unwrap(await admin.rpc('admin_update_taxonomy_configuration', {
+  p_item_type: 'subcategory', p_item_id: subId,
+  p_payload: { descriptionEn: 'Synthetic verified local fixture only', descriptionBn: 'শুধু পরীক্ষামূলক তথ্য' },
+}), 'save bilingual taxonomy configuration');
+assert.equal(configured.item.description_bn, 'শুধু পরীক্ষামূলক তথ্য');
 const original = unwrap(await admin.rpc('admin_get_reporting_form', { p_subcategory_id: subId }), 'read six default fields');
 assert.equal(original.schema.status, 'draft');
 assert.equal(original.fields.length, 6);
@@ -145,6 +152,7 @@ const publishedFields = activeConfig.forms.find((row) => row.subcategoryId === s
 assert.equal(publishedFields.length, 7);
 assert.deepEqual(publishedFields.find((field) => field.fieldKey === 'witness_type')?.options, formFields.at(-1).options);
 assert.equal(activeConfig.subcategories.find((row) => row.id === subId)?.nameBn, 'যাচাইকৃত সাক্ষী প্রতিবেদন');
+assert.equal(activeConfig.subcategories.find((row) => row.id === subId)?.descriptionBn, 'শুধু পরীক্ষামূলক তথ্য');
 assert.equal((await newsTaxonomy()).subcategories.some((row) => row.id === subId), true);
 
 const disabled = unwrap(await admin.rpc('admin_update_taxonomy_item', {

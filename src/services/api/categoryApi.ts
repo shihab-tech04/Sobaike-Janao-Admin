@@ -35,6 +35,24 @@ export interface TaxonomyMoveInput {
   order: number;
 }
 
+export interface TaxonomyConfiguration {
+  id: string;
+  descriptionEn: string;
+  descriptionBn: string;
+  shortNameEn?: string;
+  shortNameBn?: string;
+  slug?: string;
+}
+
+interface RawTaxonomyConfigurationItem {
+  id: string;
+  description_en?: string;
+  description_bn?: string;
+  short_name_en?: string;
+  short_name_bn?: string;
+  slug?: string;
+}
+
 interface RawSegmentRow {
   id: string;
   name_en: string;
@@ -53,6 +71,32 @@ interface RawTaxonomyBundle {
 }
 
 export class CategoryApi {
+  async getTaxonomyConfigurationItem(itemType: 'segment' | 'subcategory', itemId: string): Promise<TaxonomyConfiguration> {
+    if (!isSupabaseConfigured) throw new Error('Taxonomy configuration service is unavailable.');
+    const { data, error } = await supabase.rpc('admin_get_taxonomy_configuration');
+    if (error) throw new Error(error.message);
+    const list: RawTaxonomyConfigurationItem[] = itemType === 'segment' ? data?.segments : data?.subcategories;
+    const found = Array.isArray(list) ? list.find((item) => item.id === itemId) : null;
+    if (!found) throw new Error('Taxonomy item was not found in the authorized configuration.');
+    return {
+      id: found.id, descriptionEn: found.description_en || '', descriptionBn: found.description_bn || '',
+      shortNameEn: found.short_name_en || '', shortNameBn: found.short_name_bn || '', slug: found.slug || undefined,
+    };
+  }
+
+  async updateTaxonomyConfiguration(itemType: 'segment' | 'subcategory', item: TaxonomyConfiguration): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Taxonomy configuration service is unavailable.');
+    const { data, error } = await supabase.rpc('admin_update_taxonomy_configuration', {
+      p_item_type: itemType,
+      p_item_id: item.id,
+      p_payload: {
+        descriptionEn: item.descriptionEn.trim(), descriptionBn: item.descriptionBn.trim(),
+        ...(itemType === 'segment' ? { shortNameEn: item.shortNameEn?.trim(), shortNameBn: item.shortNameBn?.trim() } : {}),
+      },
+    });
+    if (error || data?.success !== true) throw new Error(error?.message || 'Server rejected taxonomy configuration.');
+  }
+
   /** Publish is deliberate and backend-validated: parent, form, and banner gates are enforced in SQL. */
   async publishTaxonomyItem(itemType: 'segment' | 'subcategory', itemId: string): Promise<void> {
     if (!isSupabaseConfigured) throw new Error('Supabase taxonomy service is unavailable.');

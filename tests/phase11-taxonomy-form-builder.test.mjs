@@ -8,6 +8,7 @@ const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf
 const api = read('src/services/api/reportingFormApi.ts');
 const builder = read('src/components/categories/ReportingFormBuilderDrawer.tsx');
 const detail = read('src/components/categories/CategoryDetailDrawer.tsx');
+const config = read('src/components/categories/CategoryConfigurationModal.tsx');
 const publicRpc = read('test-only/phase02_missing_functions_part3.sql');
 const adminRpc = read('test-only/phase02_missing_functions_part2.sql');
 const newsRpc = read('test-only/current_contract_baseline.sql');
@@ -47,6 +48,9 @@ test('UI exposes explicit form draft/save, review and publish, and deliberate ca
   assert.match(builder, /isProtectedField/);
   assert.match(detail, /taxonomy-form-open/);
   assert.match(detail, /taxonomy-publish-confirm/);
+  assert.match(detail, /taxonomy-config-open/);
+  assert.match(config, /taxonomy-config-save/);
+  assert.match(read('src/services/api/categoryApi.ts'), /admin_update_taxonomy_configuration/);
   assert.match(detail, /categories\.manage/);
   assert.match(adminRpc, /Publish a reporting form before publishing this subcategory/);
 });

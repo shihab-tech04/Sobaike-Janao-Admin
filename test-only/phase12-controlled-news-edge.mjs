@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { classifyArticle } from '../supabase/functions/_shared/newsIntakeAutomationCore.ts';
 
 const api = process.env.RECOVERY_LOCAL_API_URL;
 const db = process.env.RECOVERY_LOCAL_DB_URL;
@@ -58,6 +59,9 @@ const articleHtml = await articleResponse.text();
 assert.match(articleHtml, /TEST FIXTURE/);
 assert.match(articleHtml, /"@type":"NewsArticle"/);
 assert.match(articleHtml, /datePublished/);
+assert.deepEqual(classifyArticle('Dhaka road collision near Shyamoli market leaves three passengers injured'), {
+  segmentId: 'road_transport', subcategoryId: 'road-accident', confidence: 0.91,
+});
 
 sql(`INSERT INTO public.news_source_domains(
   hostname,publisher_name,homepage_url,active,scan_enabled,scan_priority,language_hint)
@@ -124,7 +128,7 @@ const first = await edgeCall('news-intake-scan', {});
 assert.ok(first.runId, 'first manual scan must create a review run');
 assert.notEqual(first.status, 'failed');
 const firstRows = sql(`SELECT action||':'||coalesce(duplicate_status,'none')||':'||
-  CASE WHEN review_payload IS NULL THEN 'no_payload' ELSE 'payload' END
+  CASE WHEN review_payload IS NULL THEN 'no_payload' ELSE 'payload' END||' — '||coalesce(reason,'')
   FROM public.news_intake_run_items WHERE run_id='${first.runId}' AND item_kind='article'
   ORDER BY created_at`);
 assert.match(firstRows, /created_draft:clear:payload/,

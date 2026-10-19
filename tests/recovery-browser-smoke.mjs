@@ -6,8 +6,9 @@ import { chromium } from 'playwright';
 
 const app = process.env.RECOVERY_BROWSER_APP;
 const baseUrl = process.env.RECOVERY_BROWSER_BASE_URL;
+const expectedSupabaseHost = process.env.RECOVERY_EXPECT_SUPABASE_HOST;
 assert.equal(app, 'admin');
-assert.ok(baseUrl, 'RECOVERY_BROWSER_BASE_URL must point to the loopback Vite server');
+assert.ok(baseUrl, 'RECOVERY_BROWSER_BASE_URL must point to the site under test');
 
 const widths = [360, 390, 768, 1280, 1536];
 const browser = await chromium.launch({ headless: true });
@@ -79,8 +80,14 @@ try {
     assert.ok(screenshot.byteLength > 1000);
     await context.close();
   }
-  assert.deepEqual([...supabaseHosts], [], 'browser smoke must not contact any hosted Supabase project');
-  console.log(`Responsive Admin login EN/BN × light/dark and 44px control smoke passed at ${widths.join(', ')} CSS pixels. No hosted data requested.`);
+  if (expectedSupabaseHost) {
+    // With no signed-in user, Supabase Auth can restore an empty local session
+    // without any network requests. Reject unexpected hosted project traffic.
+    assert.ok([...supabaseHosts].every((host) => host === expectedSupabaseHost), 'connected Admin site must not contact another Supabase project');
+  } else {
+    assert.deepEqual([...supabaseHosts], [], 'isolated browser smoke must not contact any hosted Supabase project');
+  }
+  console.log(`Responsive Admin login EN/BN × light/dark and 44px control smoke passed at ${widths.join(', ')} CSS pixels. Supabase mode: ${expectedSupabaseHost || 'isolated'}.`);
 } finally {
   await browser.close();
 }

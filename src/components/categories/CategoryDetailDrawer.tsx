@@ -24,6 +24,8 @@ import {
   Layers,
   Pencil,
   MoveRight,
+  Send,
+  ListChecks,
 } from 'lucide-react';
 
 export type DetailDrawerTarget =
@@ -36,6 +38,7 @@ export interface CategoryDetailDrawerProps {
   target: DetailDrawerTarget | null;
   allSegments?: TaxonomySegment[];
   onUpdated?: () => void;
+  onOpenForm?: (subcategory: TaxonomySubcategory, parentActive: boolean) => void;
 }
 
 export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
@@ -44,6 +47,7 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   target,
   allSegments = [],
   onUpdated,
+  onOpenForm,
 }) => {
   const { language } = useLanguage();
   const { hasPermission } = useAuth();
@@ -54,6 +58,7 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isMoveOpen, setIsMoveOpen] = useState(false);
   const [targetSegmentId, setTargetSegmentId] = useState('');
+  const [publishConfirm, setPublishConfirm] = useState(false);
 
   if (!target) return null;
 
@@ -105,6 +110,19 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
     }
   };
 
+  const handlePublish = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await categoryApi.publishTaxonomyItem(target.type, target.data.id);
+      setPublishConfirm(false);
+      onClose();
+      onUpdated?.();
+    } catch (error: any) {
+      setSaveError(error?.message || 'Could not publish taxonomy item.');
+    } finally { setIsSaving(false); }
+  };
+
   return (
     <>
     <Drawer
@@ -132,6 +150,16 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       footer={
         canManage ? (
           <div className="flex gap-2 justify-end flex-wrap">
+            {target.type === 'subcategory' && onOpenForm && <Button id="taxonomy-form-open" type="button" variant="secondary"
+              onClick={() => onOpenForm(target.data, target.parentSegment?.status === 'active')}
+              leftIcon={<ListChecks className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'ফর্ম বিল্ডার' : 'Form Builder'}
+            </Button>}
+            {target.data.status !== 'active' && <Button id="taxonomy-publish-open" type="button" variant="secondary"
+              disabled={isSaving} onClick={() => { setSaveError(null); setPublishConfirm(true); }}
+              leftIcon={<Send className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'পর্যালোচনা ও প্রকাশ' : 'Review & Publish'}
+            </Button>}
             {target.type === 'subcategory' && allSegments.some((s) => s.id !== target.data.segmentId) && (
               <Button type="button" variant="secondary" onClick={() => {
                 setSaveError(null);
@@ -310,6 +338,7 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
         <Divider />
 
         {/* Read-Only Notice */}
+        {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{saveError}</p>}
         <div className="text-[11px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl">
           {canManage
             ? isBn
@@ -331,6 +360,17 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       onClose={handleCloseEdit}
       onSave={handleSave}
     />
+    <Modal isOpen={publishConfirm} onClose={isSaving ? () => {} : () => setPublishConfirm(false)}
+      title={isBn ? 'প্রকাশ নিশ্চিত করুন' : 'Confirm taxonomy publication'} size="md"
+      footer={<div className="flex gap-2 justify-end w-full">
+        <Button variant="secondary" disabled={isSaving} onClick={() => setPublishConfirm(false)}>{isBn ? 'বাতিল' : 'Cancel'}</Button>
+        <Button id="taxonomy-publish-confirm" variant="primary" isLoading={isSaving} disabled={isSaving} onClick={handlePublish}>{isBn ? 'প্রকাশ করুন' : 'Publish'}</Button>
+      </div>}>
+      <p className="text-sm">{isBn
+        ? 'প্রকাশের আগে সার্ভার ফর্ম, ক্যাটাগরি এবং ব্যানারের প্রস্তুতি যাচাই করবে। অসম্পূর্ণ থাকলে প্রকাশ করা হবে না।'
+        : 'The server checks the required form, parent category, and banner readiness. Incomplete drafts cannot become public.'}</p>
+      {saveError && <p role="alert" className="text-sm text-red-700 mt-2">{saveError}</p>}
+    </Modal>
     <Modal isOpen={isMoveOpen && target.type === 'subcategory'}
       onClose={isSaving ? () => {} : () => setIsMoveOpen(false)}
       closeOnBackdrop={!isSaving}

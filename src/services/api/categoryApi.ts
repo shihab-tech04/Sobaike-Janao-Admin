@@ -53,6 +53,17 @@ interface RawTaxonomyBundle {
 }
 
 export class CategoryApi {
+  /** Publish is deliberate and backend-validated: parent, form, and banner gates are enforced in SQL. */
+  async publishTaxonomyItem(itemType: 'segment' | 'subcategory', itemId: string): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase taxonomy service is unavailable.');
+    const { data, error } = await supabase.rpc('admin_publish_taxonomy_item', {
+      p_item_type: itemType, p_item_id: itemId,
+    });
+    if (error || data?.success !== true) {
+      throw new Error(error?.message || 'Server rejected taxonomy publication. Review required form and banner configuration.');
+    }
+  }
+
   /** Creation always produces an inactive draft and never silently publishes. */
   async createTaxonomyItem(input: TaxonomyCreateInput): Promise<void> {
     if (!isSupabaseConfigured) throw new Error('Supabase taxonomy service is unavailable.');

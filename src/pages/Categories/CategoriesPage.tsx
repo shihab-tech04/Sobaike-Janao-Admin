@@ -21,6 +21,7 @@ import {
   DetailDrawerTarget,
 } from '@/components/categories';
 import { CategoryCreateModal } from '@/components/categories/CategoryCreateModal';
+import { ReportingFormBuilderDrawer } from '@/components/categories/ReportingFormBuilderDrawer';
 import { useAuth } from '@/context/AuthContext';
 import {
   RefreshCw,
@@ -68,6 +69,7 @@ export const CategoriesPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [formTarget, setFormTarget] = useState<{ subcategory: TaxonomySubcategory; parentActive: boolean } | null>(null);
 
   /**
    * Load taxonomy data from Supabase (runs on mount and on manual refresh only)
@@ -411,7 +413,16 @@ export const CategoriesPage: React.FC = () => {
         target={drawerTarget}
         allSegments={allSegments}
         onUpdated={() => loadTaxonomyData(true)}
+        onOpenForm={(subcategory, parentActive) => {
+          setFormTarget({ subcategory, parentActive });
+          handleCloseDrawer();
+        }}
       />
+      <ReportingFormBuilderDrawer subcategoryId={formTarget?.subcategory.id || null}
+        subcategoryName={formTarget?.subcategory[isBn ? 'nameBn' : 'nameEn'] || ''}
+        parentActive={formTarget?.parentActive || false}
+        subcategoryActive={formTarget?.subcategory.status === 'active'}
+        onClose={() => setFormTarget(null)} onPublished={() => loadTaxonomyData(true)} />
       {canManage && <CategoryCreateModal isOpen={isCreateOpen} segments={allSegments}
         isSaving={isCreating} error={createError}
         onClose={() => { if (!isCreating) setIsCreateOpen(false); }} onSave={handleCreate} />}

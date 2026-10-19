@@ -157,6 +157,9 @@ jobs:
       - name: Verify synthetic complaint and response moderation through Public SQL reads
         run: node test-only/phase10-isolated-moderation.mjs
 
+      - name: Verify bilingual form builder and taxonomy parity in Admin, Public, and News Intake
+        run: node test-only/phase11-isolated-form-builder.mjs
+
       - name: Start recovered Admin account Edge functions locally
         working-directory: test-only/local-supabase
         shell: bash

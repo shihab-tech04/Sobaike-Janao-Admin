@@ -1,19 +1,37 @@
 import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 
 const url = process.env.RECOVERY_LOCAL_API_URL;
 const anonKey = process.env.RECOVERY_LOCAL_ANON_KEY;
 const serviceKey = process.env.RECOVERY_LOCAL_SERVICE_ROLE_KEY;
+const dbUrl = process.env.RECOVERY_LOCAL_DB_URL;
 const origin = new URL(url || '');
+const dbOrigin = new URL(dbUrl || '');
 assert.equal(origin.protocol, 'http:');
 assert.equal(origin.hostname, '127.0.0.1');
 assert.equal(origin.port, '54321');
+assert.equal(dbOrigin.hostname, '127.0.0.1');
+assert.equal(dbOrigin.port, '54322');
+assert.ok(['postgres:', 'postgresql:'].includes(dbOrigin.protocol));
 assert.ok(anonKey && serviceKey, 'Disposable API keys required');
 
 const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const nonce = randomUUID().slice(0, 8);
 const password = `Synthetic-${randomUUID()}-Mfa4!`;
+
+function isolatedSql(statement, expectedFailure = false) {
+  try {
+    execFileSync('psql', [dbUrl, '--set', 'ON_ERROR_STOP=1', '--command', statement], {
+      encoding: 'utf8', stdio: 'pipe', timeout: 15_000,
+    });
+    assert.equal(expectedFailure, false, 'Invariant-breaking SQL unexpectedly succeeded');
+  } catch (error) {
+    if (!expectedFailure) throw error;
+    assert.match(String(error.stderr || ''), /Super Administrator account cannot be/);
+  }
+}
 
 function decodeBase32(secret) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -69,10 +87,10 @@ assert.ifError(outsiderRole.error);
 assert.equal(outsiderRole.data, false);
 
 const operator = await createSyntheticUser('operator');
-const membership = await admin.from('admin_users').insert({
-  user_id: operator.id, active: true, is_super_admin: true, display_name: 'Isolated MFA Test Administrator',
-});
-assert.ifError(membership.error);
+assert.match(operator.id, /^[0-9a-f-]{36}$/i);
+// The captured production grants correctly prohibit service_role table inserts.
+// Seed only this disposable localhost fixture as the database owner.
+isolatedSql(`INSERT INTO public.admin_users(user_id, active, is_super_admin, display_name) VALUES ('${operator.id}', true, true, 'Isolated MFA Test Administrator')`);
 
 const session = await loginAs(operator.email);
 const before = await contextFor(session);
@@ -111,12 +129,9 @@ for (const permission of ['roles.manage', 'admin_users.manage', 'complaints.evid
   assert.equal(result.data, true, `verified AAL2 Super Admin should hold ${permission}`);
 }
 
-const blockedDemotion = await admin.from('admin_users').update({ is_super_admin: false }).eq('user_id', operator.id);
-assert.ok(blockedDemotion.error, 'Protected Super Admin may not be demoted even by database service role');
-const blockedDeactivation = await admin.from('admin_users').update({ active: false }).eq('user_id', operator.id);
-assert.ok(blockedDeactivation.error, 'Protected Super Admin may not be deactivated even by database service role');
-const blockedDeletion = await admin.from('admin_users').delete().eq('user_id', operator.id);
-assert.ok(blockedDeletion.error, 'Protected Super Admin may not be deleted even by database service role');
+isolatedSql(`UPDATE public.admin_users SET is_super_admin = false WHERE user_id = '${operator.id}'`, true);
+isolatedSql(`UPDATE public.admin_users SET active = false WHERE user_id = '${operator.id}'`, true);
+isolatedSql(`DELETE FROM public.admin_users WHERE user_id = '${operator.id}'`, true);
 
 const elevatedToken = (await session.auth.getSession()).data.session?.access_token;
 assert.ok(elevatedToken, 'Elevated session token required before revocation test');

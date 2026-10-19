@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { ADMIN_NAVIGATION_ITEMS } from '@/routes/routes.config';
+import { requiresAal2 } from '@/services/auth/permissionService';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import {
@@ -32,8 +33,9 @@ export const AdminHeader: React.FC<HeaderProps> = ({
   onToggleSidebar,
 }) => {
   const { t, language } = useLanguage();
-  const { user, logout, role, isBootstrapMode, isSuperAdmin, hasPermission } = useAuth();
+  const { user, logout, role, isBootstrapMode, isSuperAdmin, hasPermission, permissions, assuranceLevel } = useAuth();
   const isBn = language === 'bn';
+  const needsMfa = assuranceLevel !== 'aal2' && permissions.some(requiresAal2);
   const location = useLocation();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -132,6 +134,13 @@ export const AdminHeader: React.FC<HeaderProps> = ({
 
       {/* Right side: Controls (Lang, Theme, Notifs, Profile) */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {needsMfa && (
+          <button type="button" onClick={() => navigate('/security/mfa')}
+            className="min-h-10 rounded-lg border border-amber-300 bg-amber-50 px-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-amber-600 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            aria-label={isBn ? 'দুই ধাপের যাচাইকরণ সম্পন্ন করুন' : 'Complete two-step verification'}>
+            <Shield className="mr-1 inline h-4 w-4" aria-hidden="true" />{isBn ? 'MFA যাচাই' : 'Verify MFA'}
+          </button>
+        )}
         {/* Language Switcher */}
         <LanguageToggle />
 

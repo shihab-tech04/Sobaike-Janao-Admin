@@ -8,6 +8,7 @@ const backendSql = source('test-only/current_contract_baseline.sql');
 const authContext = source('src/context/AuthContext.tsx');
 const routes = source('src/routes/AppRoutes.tsx');
 const mfaPage = source('src/pages/Login/MfaPage.tsx');
+const header = source('src/components/layout/Header.tsx');
 
 test('frontend MFA permission gate matches the immutable production-derived SQL contract', () => {
   const sqlMatch = backendSql.match(/v_requires_aal2 := p_permission_id = any\(array\[([\s\S]*?)\]::text\[\]\)/);
@@ -23,6 +24,9 @@ test('protected role routes require backend membership and verified AAL2', () =>
   assert.match(routes, /!session \|\| !user \|\| !isAdmin/);
   assert.match(routes, /permissions\.includes\(requiredPermission\) && requiresAal2\(requiredPermission\) && assuranceLevel !== 'aal2'/);
   assert.match(routes, /to="\/security\/mfa"/);
+  assert.match(routes, /permissions\.some\(requiresAal2\)/);
+  assert.match(header, /needsMfa &&/);
+  assert.match(header, /navigate\('\/security\/mfa'\)/);
   assert.match(authContext, /getAuthenticatorAssuranceLevel\(\)/);
   assert.match(authContext, /permissions\.includes\(permissionId\) && \(!requiresAal2\(permissionId\) \|\| assuranceLevel === 'aal2'\)/);
   assert.match(authContext, /await checkAdminStatus\(newSession\.user\.id\)/);

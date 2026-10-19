@@ -118,7 +118,7 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
  * Directs user to the first accessible navigation item they have permission for.
  */
 const RootRedirect: React.FC = () => {
-  const { session, user, isAdmin, isLoading, permissionsLoading, hasPermission, isBootstrapMode } = useAuth();
+  const { session, user, isAdmin, isLoading, permissionsLoading, permissions, assuranceLevel, hasPermission, isBootstrapMode } = useAuth();
 
   if (isLoading || permissionsLoading) {
     return <LoadingState fullHeight message="Verifying session..." />;
@@ -129,6 +129,10 @@ const RootRedirect: React.FC = () => {
   }
 
   const targetPath = getFirstAccessibleRoute(hasPermission, isBootstrapMode);
+  if (!hasPermission('dashboard.view') && targetPath === '/dashboard'
+    && assuranceLevel !== 'aal2' && permissions.some(requiresAal2)) {
+    return <Navigate to="/security/mfa" replace />;
+  }
   return <Navigate to={targetPath} replace />;
 };
 
@@ -137,7 +141,7 @@ const RootRedirect: React.FC = () => {
  * If an active authenticated admin visits /login, redirects to their accessible home.
  */
 const PublicAuthRoute: React.FC = () => {
-  const { session, user, isAdmin, isLoading, permissionsLoading, hasPermission, isBootstrapMode } = useAuth();
+  const { session, user, isAdmin, isLoading, permissionsLoading, permissions, assuranceLevel, hasPermission, isBootstrapMode } = useAuth();
   const location = useLocation();
 
   if (isLoading || permissionsLoading) {
@@ -146,7 +150,10 @@ const PublicAuthRoute: React.FC = () => {
 
   if (session && user && isAdmin) {
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
-    const target = from || getFirstAccessibleRoute(hasPermission, isBootstrapMode);
+    const home = getFirstAccessibleRoute(hasPermission, isBootstrapMode);
+    const needsMfa = home === '/dashboard' && !hasPermission('dashboard.view')
+      && assuranceLevel !== 'aal2' && permissions.some(requiresAal2);
+    const target = from || (needsMfa ? '/security/mfa' : home);
     return <Navigate to={target} replace />;
   }
 

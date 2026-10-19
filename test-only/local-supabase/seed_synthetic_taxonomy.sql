@@ -1,5 +1,7 @@
 -- Synthetic category metadata for testing the authorized active-taxonomy read.
--- No reports, users, contact details, storage objects, or production records are seeded.
+-- Minimal canonical geography is also needed for the isolated News Intake
+-- form-validation test. No reports, users, contact details, storage objects,
+-- or production records are seeded.
 INSERT INTO public.segments (id, slug, name_bn, name_en, active, sort_order, config_status)
 VALUES
   ('harassment', 'harassment', 'হয়রানি ও নির্যাতন', 'Harassment & abuse', true, 1, 'draft'),
@@ -9,6 +11,15 @@ VALUES
   ('rickshaw', 'rickshaw', 'অবৈধ অটো চার্জিং', 'Illegal auto-rickshaw charging', true, 5, 'draft'),
   ('extortion', 'extortion', 'চাঁদাবাজি', 'Extortion', true, 6, 'draft'),
   ('load_shedding', 'load-shedding', 'ইউটিলিটি সমস্যা', 'Utility issues', true, 7, 'draft');
+
+-- The frozen contract baseline restores the geo tables' schema, not their
+-- hosted lookup rows. Seed only the article's named canonical division and
+-- district in this disposable database so validation remains fail-closed.
+INSERT INTO public.bangladesh_divisions (id, name_en, name_bn)
+VALUES ('dhaka', 'Dhaka', 'ঢাকা');
+
+INSERT INTO public.bangladesh_districts (id, division_id, name_en, name_bn)
+VALUES ('dhaka', 'dhaka', 'Dhaka', 'ঢাকা');
 
 BEGIN;
 SET LOCAL ROLE anon;

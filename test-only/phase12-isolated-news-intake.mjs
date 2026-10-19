@@ -118,5 +118,8 @@ const disabled = unwrap(await service.rpc('service_begin_scheduled_news_intake_r
 }), 'disabled scheduling');
 assert.equal(disabled.accepted, false);
 assert.equal(disabled.disabled, true);
+// Keep the wholly fictional .example registry entry for audit evidence but do
+// not let the subsequent real HTTPS smoke attempt to fetch it.
+sql(`UPDATE public.news_source_domains SET scan_enabled=false WHERE hostname='${sourceHostname}'`);
 
 console.log('PHASE12_REVIEW_ONLY_SCHEDULER_DOMAIN_DEDUPE_AND_NO_PUBLICATION_PASS');

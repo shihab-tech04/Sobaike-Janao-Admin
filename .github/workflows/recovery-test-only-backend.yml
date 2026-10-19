@@ -49,6 +49,9 @@ jobs:
           mkdir -p "$target"
           cp -a "$GITHUB_WORKSPACE/supabase/functions/admin-create-user" "$target/"
           cp -a "$GITHUB_WORKSPACE/supabase/functions/admin-delete-user" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/news-intake-scan" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/news-intake-fetch" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/_shared" "$target/"
           test -s "$target/admin-create-user/index.ts"
           test -s "$target/admin-delete-user/index.ts"
 
@@ -187,6 +190,9 @@ jobs:
 
       - name: Verify Admin Edge account methods and unauthorized denial
         run: node test-only/admin-edge-auth-smoke.mjs
+
+      - name: Scan real controlled HTTPS article fixture into a private News Intake draft only
+        run: node test-only/phase12-controlled-news-edge.mjs
 
       - name: Stop disposable local project
         if: always()

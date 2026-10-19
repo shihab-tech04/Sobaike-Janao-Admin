@@ -154,6 +154,9 @@ jobs:
       - name: Exercise Auth, real synthetic TOTP AAL2, RBAC and revocation
         run: node test-only/phase09-isolated-auth-mfa.mjs
 
+      - name: Verify synthetic complaint and response moderation through Public SQL reads
+        run: node test-only/phase10-isolated-moderation.mjs
+
       - name: Start recovered Admin account Edge functions locally
         working-directory: test-only/local-supabase
         shell: bash

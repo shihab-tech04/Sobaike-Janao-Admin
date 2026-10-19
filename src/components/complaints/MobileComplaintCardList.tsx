@@ -36,6 +36,11 @@ export const MobileComplaintCardList: React.FC<MobileComplaintCardListProps> = (
   const navigate = useNavigate();
   const { language } = useLanguage();
   const isBn = language === 'bn';
+  const originLabel = (origin: Complaint['postedBy']) => origin === 'admin'
+    ? (isBn ? 'অ্যাডমিন' : 'Admin')
+    : origin === 'user'
+    ? (isBn ? 'ব্যবহারকারী' : 'User')
+    : (isBn ? 'অনির্ধারিত' : 'Unverified');
 
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const isDrawerOpen = Boolean(selectedComplaint);
@@ -159,6 +164,10 @@ export const MobileComplaintCardList: React.FC<MobileComplaintCardListProps> = (
                   </h4>
                 </div>
 
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isBn ? 'পোস্ট করেছেন' : 'Posted by'}: <span className="font-semibold">{originLabel(complaint.postedBy)}</span>
+                </p>
+
                 {/* Meta Row: Location + Date */}
                 <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                   <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -213,6 +222,9 @@ export const MobileComplaintCardList: React.FC<MobileComplaintCardListProps> = (
           }
         >
           <div className="space-y-4 text-xs">
+            <p className="font-semibold text-slate-600 dark:text-slate-300">
+              {isBn ? 'পোস্ট করেছেন' : 'Posted by'}: {originLabel(selectedComplaint.postedBy)}
+            </p>
             {/* Status & ID Header */}
             <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
               <div>

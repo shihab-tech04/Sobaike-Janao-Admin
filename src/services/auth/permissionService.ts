@@ -23,6 +23,28 @@ export const CANONICAL_PERMISSIONS = [
 
 export type CanonicalPermissionId = (typeof CANONICAL_PERMISSIONS)[number];
 
+/** Keep this list aligned with the database has_permission() AAL2 gate.
+ * Frontend checks improve navigation; the database remains authoritative.
+ */
+export const AAL2_PERMISSIONS = new Set<string>([
+  'admin_users.manage',
+  'banners.manage',
+  'categories.manage',
+  'complaints.evidence_view',
+  'complaints.export',
+  'complaints.publish',
+  'complaints.reject',
+  'complaints.unpublish',
+  'location_activity.view',
+  'responses.publish',
+  'responses.reject',
+  'responses.resubmit',
+  'responses.unpublish',
+  'roles.manage',
+]);
+
+export const requiresAal2 = (permissionId: string): boolean => AAL2_PERMISSIONS.has(permissionId);
+
 export interface UserAssignedRole {
   id: string;
   name_en: string;

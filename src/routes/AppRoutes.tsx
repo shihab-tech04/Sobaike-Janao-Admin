@@ -11,6 +11,8 @@ import {
 import { AdminLayout } from '@/layouts';
 import { LoadingState, AccessDenied } from '@/components/common';
 import { useAuth } from '@/context/AuthContext';
+import { requiresAal2 } from '@/services/auth/permissionService';
+import { MfaPage } from '@/pages/Login/MfaPage';
 import { ADMIN_NAVIGATION_ITEMS, getFirstAccessibleRoute } from '@/routes/routes.config';
 import {
   LoginPage,
@@ -76,7 +78,8 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   fallbackPath,
   children,
 }) => {
-  const { hasPermission, permissionsLoading, permissionsError, isLoading, isBootstrapMode } = useAuth();
+  const { hasPermission, permissions, assuranceLevel, permissionsLoading, permissionsError, isLoading, isBootstrapMode } = useAuth();
+  const location = useLocation();
 
   if (isLoading || permissionsLoading) {
     return <LoadingState fullHeight message="Verifying permissions..." />;
@@ -92,6 +95,10 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
         isErrorState={true}
       />
     );
+  }
+
+  if (permissions.includes(requiredPermission) && requiresAal2(requiredPermission) && assuranceLevel !== 'aal2') {
+    return <Navigate to="/security/mfa" state={{ from: { pathname: location.pathname } }} replace />;
   }
 
   if (!hasPermission(requiredPermission)) {
@@ -154,6 +161,7 @@ const routes = createRoutesFromElements(
     {/* Protected Admin Shell Routes */}
     <Route element={<ProtectedAdminRoute />}>
       <Route path="/" element={<RootRedirect />} />
+      <Route path="/security/mfa" element={<MfaPage />} />
       
       <Route
         path="/dashboard"

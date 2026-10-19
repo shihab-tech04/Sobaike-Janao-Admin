@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authService, checkAdminStatus, LoginCredentials, LoginResponse } from '@/services/auth/authService';
-import { permissionService, UserAssignedRole } from '@/services/auth/permissionService';
+import { permissionService, requiresAal2, UserAssignedRole } from '@/services/auth/permissionService';
 
 export interface AuthContextType {
   user: User | null;
@@ -11,6 +11,8 @@ export interface AuthContextType {
   isSuperAdmin: boolean;
   isLoading: boolean;
   isConfigured: boolean;
+  assuranceLevel: 'aal1' | 'aal2';
+  refreshAssuranceLevel: () => Promise<'aal1' | 'aal2'>;
   // RBAC State
   permissions: string[];
   role: UserAssignedRole | null;
@@ -36,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [assuranceLevel, setAssuranceLevel] = useState<'aal1' | 'aal2'>('aal1');
 
   // RBAC permissions state
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -49,6 +52,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdminRef = useRef<boolean>(false);
   const isSuperAdminRef = useRef<boolean>(false);
   const permissionsRef = useRef<string[]>([]);
+
+  const refreshAssuranceLevel = useCallback(async (): Promise<'aal1' | 'aal2'> => {
+    if (!isSupabaseConfigured) {
+      setAssuranceLevel('aal1');
+      return 'aal1';
+    }
+    try {
+      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (error) throw error;
+      const level = data?.currentLevel === 'aal2' ? 'aal2' : 'aal1';
+      if (isMountedRef.current) setAssuranceLevel(level);
+      return level;
+    } catch {
+      if (isMountedRef.current) setAssuranceLevel('aal1');
+      return 'aal1';
+    }
+  }, []);
 
   // Keep refs synchronized with state
   useEffect(() => {
@@ -119,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   const resetAuthState = useCallback(() => {
     setSession(null);
+    setAssuranceLevel('aal1');
     setUser(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
@@ -155,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Load permissions in parallel
             await loadUserPermissions();
+            await refreshAssuranceLevel();
           } else {
             resetAuthState();
             // Defer sign-out outside
@@ -191,6 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             userRef.current = defaultUser;
             isAdminRef.current = true;
             await loadUserPermissions();
+            await refreshAssuranceLevel();
           } else {
             resetAuthState();
           }
@@ -220,13 +243,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Check if already authenticated and verified as admin for the same user
+      // A refreshed access token may have different MFA assurance or revocation state.
+      // Re-check authoritative admin membership and permissions on every auth event.
       if (userRef.current?.id === newSession.user.id && isAdminRef.current) {
         setSession(newSession);
         setUser(newSession.user);
         userRef.current = newSession.user;
         setIsLoading(false);
-        return;
       }
 
       // Defer admin verification safely outside the synchronous callback
@@ -244,6 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAdminRef.current = true;
 
             await loadUserPermissions();
+            await refreshAssuranceLevel();
           } else {
             resetAuthState();
             // Safely sign out non-admin user outside the callback
@@ -265,7 +289,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isMountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [loadUserPermissions, resetAuthState]);
+  }, [loadUserPermissions, refreshAssuranceLevel, resetAuthState]);
 
   const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
     if (typeof window !== 'undefined') {
@@ -278,6 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userRef.current = result.user;
       
       await loadUserPermissions();
+      await refreshAssuranceLevel();
 
       if (!isAdminRef.current) {
         resetAuthState();
@@ -311,6 +336,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       await loadUserPermissions();
     }
+    await refreshAssuranceLevel();
     return active;
   };
 
@@ -326,9 +352,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = useCallback(
     (permissionId: string): boolean => {
       if (!isAdmin) return false;
-      return permissions.includes(permissionId);
+      return permissions.includes(permissionId) && (!requiresAal2(permissionId) || assuranceLevel === 'aal2');
     },
-    [isAdmin, permissions]
+    [isAdmin, permissions, assuranceLevel]
   );
 
   /**
@@ -338,9 +364,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (permissionIds: string[]): boolean => {
       if (!isAdmin) return false;
       if (!permissionIds || permissionIds.length === 0) return true;
-      return permissionIds.some((p) => permissions.includes(p));
+      return permissionIds.some((p) => permissions.includes(p) && (!requiresAal2(p) || assuranceLevel === 'aal2'));
     },
-    [isAdmin, permissions]
+    [isAdmin, permissions, assuranceLevel]
   );
 
   /**
@@ -350,9 +376,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (permissionIds: string[]): boolean => {
       if (!isAdmin) return false;
       if (!permissionIds || permissionIds.length === 0) return true;
-      return permissionIds.every((p) => permissions.includes(p));
+      return permissionIds.every((p) => permissions.includes(p) && (!requiresAal2(p) || assuranceLevel === 'aal2'));
     },
-    [isAdmin, permissions]
+    [isAdmin, permissions, assuranceLevel]
   );
 
   return (
@@ -364,6 +390,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSuperAdmin,
         isLoading,
         isConfigured: isSupabaseConfigured,
+        assuranceLevel,
+        refreshAssuranceLevel,
         permissions,
         role,
         isBootstrapMode,

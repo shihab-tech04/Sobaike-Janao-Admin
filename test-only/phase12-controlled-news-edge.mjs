@@ -80,9 +80,9 @@ sql(`WITH form_schema AS (
 INSERT INTO public.reporting_form_schema_fields(
   schema_id,field_key,field_type,storage_mode,storage_key,label_en,label_bn,
   required,active,sort_order,options,validation,config)
-SELECT id,'title','text','core_column','title','Title','শিরোনাম',true,true,10,'[]','{"maxLength":100}','{}' FROM form_schema
+SELECT id,'title','text','core_column','title','Title','শিরোনাম',true,true,10,'[]'::jsonb,'{"maxLength":100}'::jsonb,'{}'::jsonb FROM form_schema
 UNION ALL
-SELECT id,'description','textarea','core_column','description','Description','বিবরণ',true,true,20,'[]','{"maxLength":2000}','{}' FROM form_schema`);
+SELECT id,'description','textarea','core_column','description','Description','বিবরণ',true,true,20,'[]'::jsonb,'{"maxLength":2000}'::jsonb,'{}'::jsonb FROM form_schema`);
 
 const user = unwrap(await service.auth.admin.createUser({ email, password, email_confirm: true }), 'local synthetic Auth user').user;
 assert.ok(user.id);

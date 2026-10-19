@@ -81,6 +81,20 @@ sql(`INSERT INTO public.role_permissions(role_id, permission_id)
     'responses.publish','responses.reject','responses.unpublish')`);
 sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
 
+// The production-derived fixture is deliberately metadata-only and contains
+// no notification-catalogue rows. Recreate only the synthetic event definitions
+// required by real moderation RPCs; never weaken or skip their audit producers.
+sql(`INSERT INTO public.admin_notification_event_catalogue(
+  event_key, category, default_layer, default_severity, description, active)
+  VALUES
+  ('complaint.submitted', 'complaint', 'workflow_activity', 'info', 'Synthetic submission event', true),
+  ('complaint.published', 'complaint', 'workflow_activity', 'info', 'Synthetic publication event', true),
+  ('complaint.unpublished', 'complaint', 'workflow_activity', 'info', 'Synthetic withdrawal event', true),
+  ('complaint.rejected', 'complaint', 'workflow_activity', 'warning', 'Synthetic rejection event', true),
+  ('response.published', 'complaint', 'workflow_activity', 'info', 'Synthetic response event', true),
+  ('response.unpublished', 'complaint', 'workflow_activity', 'info', 'Synthetic response withdrawal', true),
+  ('response.rejected', 'complaint', 'workflow_activity', 'warning', 'Synthetic response rejection', true)`);
+
 // Existing synthetic taxonomy fixture defines public_safety. No real data is copied.
 sql(`INSERT INTO public.subcategories(id, segment_id, name_en, name_bn, active, sort_order)
   VALUES ('synthetic-public-safety', 'public_safety', 'Controlled synthetic safety', 'পরীক্ষামূলক নিরাপত্তা', true, 1)`);

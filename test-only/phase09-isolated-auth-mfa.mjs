@@ -89,7 +89,13 @@ assert.equal(outsiderRole.data, false);
 const operator = await createSyntheticUser('operator');
 assert.match(operator.id, /^[0-9a-f-]{36}$/i);
 // The captured production grants correctly prohibit service_role table inserts.
-// Seed only this disposable localhost fixture as the database owner.
+// The metadata-only recovery snapshot deliberately contains no application data:
+// seed only synthetic permission catalog rows in this disposable localhost test.
+isolatedSql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
+  ('roles.manage', 'roles', 'manage', 'Manage Roles (synthetic)', 'ভূমিকা (পরীক্ষা)'),
+  ('admin_users.manage', 'admin_users', 'manage', 'Manage Users (synthetic)', 'ব্যবহারকারী (পরীক্ষা)'),
+  ('complaints.evidence_view', 'complaints', 'evidence_view', 'View Evidence (synthetic)', 'প্রমাণ (পরীক্ষা)')`);
+// Seed only the test subject membership as the disposable database owner.
 isolatedSql(`INSERT INTO public.admin_users(user_id, active, is_super_admin, display_name) VALUES ('${operator.id}', true, true, 'Isolated MFA Test Administrator')`);
 
 const session = await loginAs(operator.email);

@@ -564,6 +564,9 @@ const buildAutomationReviewPayload = (
 const isUnsafeNetworkHostname = (hostname: string) => {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (host === "localhost" || host === "::1" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
+  // News sources are publisher DNS names, never literal IP addresses. Ban all
+  // IP-literal spellings (including IPv6 and URL-normalized decimal IPv4).
+  if (host.includes(':') || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) return true;
   const parts = host.split(".").map((part) => Number(part));
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
   const [a,b] = parts;
@@ -590,7 +593,9 @@ const isPrivateOrReservedIp = (raw: string): boolean => {
       value.startsWith('fd') ||
       /^fe[89ab]/.test(value) ||
       value.startsWith('ff') ||
-      value.startsWith('2001:db8:')
+      value.startsWith('2001:db8:') ||
+      /(?:^|:)ffff:/.test(value) ||
+      /^(?:2002:|2001:0:|2001:0000:|64:ff9b:)/.test(value)
     ) return true;
 
     const mapped = value.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
@@ -1505,68 +1510,22 @@ const processNewsIntakeRun = async (
           return;
         }
 
-        // Manual Find News remains a one-click select/publish workspace.
-        // Only candidates that already satisfy freshness, 400-800 source context,
-        // semantic location quality, and the current report-form contract reach
-        // Feed Ready. Excluded candidates stay diagnostic/read-only.
-        if(triggerType==='manual'){
-          const {data:sourceDuplicate,error:sourceDuplicateError}=await supabase.rpc(
-            'admin_check_source_duplicate',
-            {p_canonical_url:article.canonicalUrl}
-          );
-          if(sourceDuplicateError) throw new Error(sourceDuplicateError.message);
-
-          if(sourceDuplicate?.duplicate===true){
-            await record({
-              itemKind:'article',
-              sourceHostname:source.hostname,
-              publisherName:article.publisherName,
-              canonicalUrl:article.canonicalUrl,
-              sourceTitle:article.title,
-              sourcePublishedDate:article.sourcePublishedDate||'',
-              contentLanguage:language,
-              segmentId:classification.segmentId,
-              subcategoryId:classification.subcategoryId,
-              confidence:classification.confidence,
-              action:'skip_duplicate',
-              duplicateStatus:'exact',
-              reportId:String(sourceDuplicate.complaintId||''),
-              reason:'Exact approved-source article already exists in the report database.',
-            });
-            return;
-          }
-
-          await record({
-            itemKind:'article',
-            sourceHostname:source.hostname,
-            publisherName:article.publisherName,
-            canonicalUrl:article.canonicalUrl,
-            sourceTitle:article.title,
-            sourcePublishedDate:article.sourcePublishedDate||'',
-            contentLanguage:language,
-            segmentId:classification.segmentId,
-            subcategoryId:classification.subcategoryId,
-            confidence:classification.confidence,
-            action:'created_draft',
-            duplicateStatus:'clear',
-            reportId:null,
-            reason:'Approved-source report is ready for one-click publication.',
-            reviewPayload:payload,
-          });
-          return;
-        }
-
-        const {data:processed,error:processError}=await supabase.rpc(
-          'process_trusted_news_intake_candidate',
-          {p_payload:payload}
+        // Both manual and ~36h scheduled scans stop at a review candidate.
+        // Publication is a distinct AAL2 reviewer action in the Admin queue.
+        // Never invoke process_trusted_news_intake_candidate: the database
+        // explicitly denies that former auto-publication entry point.
+        const {data:sourceDuplicate,error:sourceDuplicateError}=await supabase.rpc(
+          'admin_check_source_duplicate',
+          {p_canonical_url:article.canonicalUrl}
         );
-        if(processError) throw new Error(processError.message);
+        if(sourceDuplicateError) throw new Error(sourceDuplicateError.message);
+        const {data:pendingDuplicate,error:pendingDuplicateError}=await supabase.rpc(
+          'admin_check_news_intake_candidate_duplicate',
+          {p_canonical_url:article.canonicalUrl}
+        );
+        if(pendingDuplicateError) throw new Error(pendingDuplicateError.message);
 
-        const resultAction=String(processed?.action||'');
-        const reportId=String(processed?.reportId||'');
-        if(!reportId) throw new Error('Trusted News Intake returned no report id.');
-
-        if(resultAction==='skip_duplicate'){
+        if(sourceDuplicate?.duplicate===true || pendingDuplicate?.duplicate===true){
           await record({
             itemKind:'article',
             sourceHostname:source.hostname,
@@ -1580,34 +1539,12 @@ const processNewsIntakeRun = async (
             confidence:classification.confidence,
             action:'skip_duplicate',
             duplicateStatus:'exact',
-            reportId,
-            reason:'Exact approved-source article already exists in the report database.',
+            reportId:sourceDuplicate?.complaintId || pendingDuplicate?.linkedReportId || null,
+            reason:sourceDuplicate?.duplicate===true
+              ? 'Exact approved-source article already exists in the report database.'
+              : 'The article already has a recent pending News Intake review candidate.',
           });
           return;
-        }
-
-        if(resultAction==='merged_source'){
-          await record({
-            itemKind:'article',
-            sourceHostname:source.hostname,
-            publisherName:article.publisherName,
-            canonicalUrl:article.canonicalUrl,
-            sourceTitle:article.title,
-            sourcePublishedDate:article.sourcePublishedDate||'',
-            contentLanguage:language,
-            segmentId:classification.segmentId,
-            subcategoryId:classification.subcategoryId,
-            confidence:classification.confidence,
-            action:'merged_source',
-            duplicateStatus:'match',
-            reportId,
-            reason:'Strong same-incident match; approved source merged into the existing published report.',
-          });
-          return;
-        }
-
-        if(resultAction!=='published' || processed?.published!==true){
-          throw new Error('Trusted News Intake did not complete publication.');
         }
 
         await record({
@@ -1623,9 +1560,9 @@ const processNewsIntakeRun = async (
           confidence:classification.confidence,
           action:'created_draft',
           duplicateStatus:'clear',
-          reportId,
-          reason:'Approved-source report automatically created and published to the public feed.',
-          reviewPayload:null,
+          reportId:null,
+          reason:'Trusted-source candidate prepared for explicit Admin review. Not published.',
+          reviewPayload:payload,
         });
       } catch(error) {
         const errorMessage=error instanceof Error?error.message:'Article processing failed.';

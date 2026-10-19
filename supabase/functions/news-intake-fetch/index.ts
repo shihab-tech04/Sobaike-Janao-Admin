@@ -98,7 +98,9 @@ const isPrivateOrReservedIp = (raw: string): boolean => {
       value.startsWith("fd") ||
       /^fe[89ab]/.test(value) ||
       value.startsWith("ff") ||
-      value.startsWith("2001:db8:")
+      value.startsWith("2001:db8:") ||
+      /(?:^|:)ffff:/.test(value) ||
+      /^(?:2002:|2001:0:|2001:0000:|64:ff9b:)/.test(value)
     ) return true;
 
     const mapped = value.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
@@ -125,7 +127,7 @@ const isPrivateOrReservedIp = (raw: string): boolean => {
   );
 };
 
-const assertPublicResolvedHost = async (hostname: string): Promise<void> => {
+const assertPublicResolvedHost = async (hostname: string): Promise<Set<string>> => {
   const host = hostname.trim().toLowerCase().replace(/\.$/, "");
   if (
     !host ||
@@ -138,8 +140,7 @@ const assertPublicResolvedHost = async (hostname: string): Promise<void> => {
   }
 
   if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host) || host.includes(":")) {
-    if (isPrivateOrReservedIp(host)) throw new Error("Private or reserved source address blocked.");
-    return;
+    throw new Error("Direct IP source addresses are not permitted.");
   }
 
   const resolved = new Set<string>();
@@ -156,7 +157,11 @@ const assertPublicResolvedHost = async (hostname: string): Promise<void> => {
       throw new Error("Source hostname resolves to a private or reserved address.");
     }
   }
+  return resolved;
 };
+
+const addressesOverlap = (before: Set<string>, after: Set<string>) =>
+  [...before].some((address) => after.has(address));
 
 async function readLimited(response: Response, limit = 768 * 1024) {
   const reader = response.body?.getReader();
@@ -239,7 +244,7 @@ Deno.serve(async (req: Request) => {
       };
     };
 
-    await assertPublicResolvedHost(current.hostname);
+    let validatedAddresses = await assertPublicResolvedHost(current.hostname);
     let domain = await checkDomain(current.toString());
     if (!domain?.approved) {
       return json(req, 
@@ -262,7 +267,10 @@ Deno.serve(async (req: Request) => {
         },
         signal: AbortSignal.timeout(8000),
       });
-      await assertPublicResolvedHost(current.hostname);
+      const fetchedAddresses = await assertPublicResolvedHost(current.hostname);
+      if (!addressesOverlap(validatedAddresses, fetchedAddresses)) {
+        return json(req, { error: "Source DNS changed during fetch; article blocked." }, 422);
+      }
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
@@ -280,7 +288,7 @@ Deno.serve(async (req: Request) => {
           return json(req, { error: "Unsafe source redirect blocked." }, 422);
         }
 
-        await assertPublicResolvedHost(next.hostname);
+        validatedAddresses = await assertPublicResolvedHost(next.hostname);
         const nextDomain = await checkDomain(next.toString());
         if (!nextDomain?.approved) {
           return json(req, 

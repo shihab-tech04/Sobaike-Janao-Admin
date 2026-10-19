@@ -139,6 +139,9 @@ jobs:
             --file test-only/phase02_missing_functions_part2.sql \
             --file test-only/phase02_missing_functions_part3.sql
 
+      - name: Apply Phase 12 review-only News Intake guard in disposable database
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file supabase/migrations/20261019000200_news_intake_explicit_review_only.sql
+
       - name: Seed seven synthetic taxonomy categories and verify anon read
         run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/local-supabase/seed_synthetic_taxonomy.sql
 
@@ -159,6 +162,9 @@ jobs:
 
       - name: Verify bilingual form builder and taxonomy parity in Admin, Public, and News Intake
         run: node test-only/phase11-isolated-form-builder.mjs
+
+      - name: Assert scheduled News Intake remains draft-only, deduplicated, and service-authorized
+        run: node test-only/phase12-isolated-news-intake.mjs
 
       - name: Start recovered Admin account Edge functions locally
         working-directory: test-only/local-supabase

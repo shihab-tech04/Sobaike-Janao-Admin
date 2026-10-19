@@ -8,6 +8,7 @@ import {
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/ui/Drawer';
+import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Divider } from '@/components/ui/Divider';
@@ -22,6 +23,7 @@ import {
   ArrowUpDown,
   Layers,
   Pencil,
+  MoveRight,
 } from 'lucide-react';
 
 export type DetailDrawerTarget =
@@ -32,6 +34,7 @@ export interface CategoryDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   target: DetailDrawerTarget | null;
+  allSegments?: TaxonomySegment[];
   onUpdated?: () => void;
 }
 
@@ -39,6 +42,7 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   isOpen,
   onClose,
   target,
+  allSegments = [],
   onUpdated,
 }) => {
   const { language } = useLanguage();
@@ -48,6 +52,8 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isMoveOpen, setIsMoveOpen] = useState(false);
+  const [targetSegmentId, setTargetSegmentId] = useState('');
 
   if (!target) return null;
 
@@ -79,6 +85,26 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
     }
   };
 
+  const handleMove = async () => {
+    if (target.type !== 'subcategory' || !targetSegmentId || targetSegmentId === target.data.segmentId) return;
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await categoryApi.moveSubcategory({
+        subcategoryId: target.data.id,
+        targetSegmentId,
+        order: target.data.order,
+      });
+      setIsMoveOpen(false);
+      onClose();
+      onUpdated?.();
+    } catch (error: any) {
+      setSaveError(error?.message || 'Failed to move subcategory.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
     <Drawer
@@ -105,15 +131,21 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       size="md"
       footer={
         canManage ? (
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleOpenEdit}
-            leftIcon={<Pencil className="w-3.5 h-3.5" />}
-            className="w-full sm:w-auto min-h-[44px]"
-          >
-            {isBn ? 'সম্পাদনা করুন' : 'Edit'}
-          </Button>
+          <div className="flex gap-2 justify-end flex-wrap">
+            {target.type === 'subcategory' && allSegments.some((s) => s.id !== target.data.segmentId) && (
+              <Button type="button" variant="secondary" onClick={() => {
+                setSaveError(null);
+                setTargetSegmentId('');
+                setIsMoveOpen(true);
+              }} leftIcon={<MoveRight className="w-3.5 h-3.5" />} className="min-h-[44px]">
+                {isBn ? 'অন্য বিভাগে সরান' : 'Move to Category'}
+              </Button>
+            )}
+            <Button type="button" variant="primary" onClick={handleOpenEdit}
+              leftIcon={<Pencil className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'সম্পাদনা করুন' : 'Edit'}
+            </Button>
+          </div>
         ) : undefined
       }
     >
@@ -299,6 +331,35 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       onClose={handleCloseEdit}
       onSave={handleSave}
     />
+    <Modal isOpen={isMoveOpen && target.type === 'subcategory'}
+      onClose={isSaving ? () => {} : () => setIsMoveOpen(false)}
+      closeOnBackdrop={!isSaving}
+      title={isBn ? 'সাব-ক্যাটাগরি অন্য বিভাগে সরান' : 'Move Subcategory'} size="md"
+      footer={
+        <div className="flex gap-2 justify-end w-full">
+          <Button type="button" variant="secondary" disabled={isSaving} onClick={() => setIsMoveOpen(false)}>{isBn ? 'বাতিল' : 'Cancel'}</Button>
+          <Button id="taxonomy-move-confirm" type="button" variant="primary" isLoading={isSaving}
+            disabled={isSaving || !targetSegmentId || (target.type === 'subcategory' && targetSegmentId === target.data.segmentId)} onClick={handleMove}>
+            {isBn ? 'নিষ্ক্রিয় করে সরান' : 'Deactivate and Move'}
+          </Button>
+        </div>
+      }>
+      <div className="space-y-4">
+        <p className="text-sm text-amber-700 dark:text-amber-300">
+          {isBn
+            ? 'সরালে আইটেমটি নিষ্ক্রিয় হবে। আগের রিপোর্ট সংরক্ষিত থাকবে; নতুন বিভাগে পুনরায় প্রকাশ ও সক্রিয় করতে হবে।'
+            : 'Moving deactivates this subcategory. Historical reports remain intact; explicit review, publication, and reactivation are required.'}
+        </p>
+        <label htmlFor="taxonomy-move-target" className="block text-sm font-semibold">{isBn ? 'নতুন বিভাগ' : 'Target category'}</label>
+        <select id="taxonomy-move-target" value={targetSegmentId} onChange={(event) => setTargetSegmentId(event.target.value)} disabled={isSaving}
+          className="w-full min-h-[44px] rounded-lg border border-slate-300 bg-white p-2 dark:bg-slate-900 dark:border-slate-700">
+          <option value="">{isBn ? 'বিভাগ নির্বাচন করুন' : 'Select category'}</option>
+          {allSegments.filter((seg) => target.type === 'subcategory' && seg.id !== target.data.segmentId)
+            .map((seg) => <option key={seg.id} value={seg.id}>{isBn ? seg.nameBn : seg.nameEn}</option>)}
+        </select>
+        {saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}
+      </div>
+    </Modal>
     </>
   );
 };

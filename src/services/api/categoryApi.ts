@@ -20,6 +20,21 @@ export interface TaxonomyBundle {
   stats: TaxonomyStats;
 }
 
+export interface TaxonomyCreateInput {
+  itemType: 'segment' | 'subcategory';
+  id: string;
+  parentSegmentId?: string;
+  nameEn: string;
+  nameBn: string;
+  order: number;
+}
+
+export interface TaxonomyMoveInput {
+  subcategoryId: string;
+  targetSegmentId: string;
+  order: number;
+}
+
 interface RawSegmentRow {
   id: string;
   name_en: string;
@@ -38,6 +53,54 @@ interface RawTaxonomyBundle {
 }
 
 export class CategoryApi {
+  /** Creation always produces an inactive draft and never silently publishes. */
+  async createTaxonomyItem(input: TaxonomyCreateInput): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase taxonomy service is unavailable.');
+    const id = input.id.trim();
+    if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(id)) {
+      throw new Error('ID must contain lowercase letters, numbers, and underscores.');
+    }
+    if (!input.nameEn.trim() || !input.nameBn.trim()) {
+      throw new Error('Both bilingual names are required.');
+    }
+    if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) {
+      throw new Error('Sort order must be an integer from 1 to 999.');
+    }
+    if (input.itemType === 'subcategory' && !input.parentSegmentId?.trim()) {
+      throw new Error('A parent category is required.');
+    }
+    const { data, error } = await supabase.rpc('admin_create_taxonomy_item', {
+      p_item_type: input.itemType,
+      p_item_id: id,
+      p_parent_segment_id: input.itemType === 'subcategory' ? input.parentSegmentId : null,
+      p_name_en: input.nameEn.trim(),
+      p_name_bn: input.nameBn.trim(),
+      p_sort_order: input.order,
+    });
+    if (error || data?.success !== true) {
+      throw new Error(`Failed to create taxonomy draft: ${error?.message || 'Server rejected the draft.'}`);
+    }
+  }
+
+  /** Server preserves historical report snapshots and deactivates on move. */
+  async moveSubcategory(input: TaxonomyMoveInput): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase taxonomy service is unavailable.');
+    if (!input.subcategoryId.trim() || !input.targetSegmentId.trim()) {
+      throw new Error('Subcategory and target category are required.');
+    }
+    if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) {
+      throw new Error('Sort order must be an integer from 1 to 999.');
+    }
+    const { data, error } = await supabase.rpc('admin_move_subcategory', {
+      p_subcategory_id: input.subcategoryId,
+      p_target_segment_id: input.targetSegmentId,
+      p_sort_order: input.order,
+    });
+    if (error || data?.success !== true) {
+      throw new Error(`Failed to move subcategory: ${error?.message || 'Server rejected the move.'}`);
+    }
+  }
+
   /**
    * Fetch all taxonomy data through the Admin-only RPC so inactive records are
    * visible to authorized administrators without weakening public RLS.

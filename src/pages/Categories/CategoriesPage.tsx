@@ -7,6 +7,7 @@ import {
   TaxonomyStats,
 } from '@/types/Category';
 import { categoryApi, TaxonomyBundle } from '@/services/api';
+import { TaxonomyCreateInput } from '@/services/api/categoryApi';
 import { useLanguage } from '@/context/LanguageContext';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +20,8 @@ import {
   CategoryEmptyState,
   DetailDrawerTarget,
 } from '@/components/categories';
+import { CategoryCreateModal } from '@/components/categories/CategoryCreateModal';
+import { useAuth } from '@/context/AuthContext';
 import {
   RefreshCw,
   Layers,
@@ -26,6 +29,7 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCcw,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/utils';
 
@@ -44,6 +48,8 @@ const EMPTY_STATS: TaxonomyStats = {
 export const CategoriesPage: React.FC = () => {
   const { language } = useLanguage();
   const isBn = language === 'bn';
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('categories.manage');
 
   // Loaded taxonomy data bundle from Supabase (loaded once on mount/refresh)
   const [taxonomyBundle, setTaxonomyBundle] = useState<TaxonomyBundle | null>(null);
@@ -59,6 +65,9 @@ export const CategoriesPage: React.FC = () => {
   // Detail Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [drawerTarget, setDrawerTarget] = useState<DetailDrawerTarget | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   /**
    * Load taxonomy data from Supabase (runs on mount and on manual refresh only)
@@ -126,6 +135,20 @@ export const CategoriesPage: React.FC = () => {
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
     setDrawerTarget(null);
+  };
+
+  const handleCreate = async (input: TaxonomyCreateInput) => {
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      await categoryApi.createTaxonomyItem(input);
+      setIsCreateOpen(false);
+      await loadTaxonomyData(true);
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create taxonomy draft.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // Client-side filtering via useMemo without querying Supabase on filter changes
@@ -222,7 +245,14 @@ export const CategoriesPage: React.FC = () => {
             : 'View the report taxonomy used by the public reporting flow.'
         }
         actions={
-          <Button
+          <div className="flex gap-2 flex-wrap">
+            {canManage && <Button id="taxonomy-create-open" variant="primary" size="sm" onClick={() => {
+              setCreateError(null);
+              setIsCreateOpen(true);
+            }} leftIcon={<Plus className="w-3.5 h-3.5" />}>
+              {isBn ? 'নতুন খসড়া' : 'New Draft'}
+            </Button>}
+            <Button
             id="refresh-taxonomy-btn"
             variant="secondary"
             size="sm"
@@ -233,6 +263,7 @@ export const CategoriesPage: React.FC = () => {
           >
             {isBn ? 'রিফ্রেশ' : 'Refresh'}
           </Button>
+          </div>
         }
       />
 
@@ -373,13 +404,17 @@ export const CategoriesPage: React.FC = () => {
         />
       )}
 
-      {/* Read-Only Detail Drawer */}
+      {/* Permission-gated taxonomy management; no automatic publication. */}
       <CategoryDetailDrawer
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
         target={drawerTarget}
+        allSegments={allSegments}
         onUpdated={() => loadTaxonomyData(true)}
       />
+      {canManage && <CategoryCreateModal isOpen={isCreateOpen} segments={allSegments}
+        isSaving={isCreating} error={createError}
+        onClose={() => { if (!isCreating) setIsCreateOpen(false); }} onSave={handleCreate} />}
     </div>
   );
 };

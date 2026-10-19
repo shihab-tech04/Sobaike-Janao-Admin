@@ -26,3 +26,15 @@ test('Admin user creation keeps stronger hosted password reputation gate', () =>
   assert.match(text, /"PASSWORD_REPUTATION_UNAVAILABLE"/);
   assert.match(text, /AbortSignal\.timeout\(5000\)/);
 });
+
+test('Admin recovery origin is allowed without wildcard CORS across all hosted Edge functions', () => {
+  for (const slug of [
+    'admin-create-user', 'admin-delete-user', 'admin-system-health',
+    'news-intake-fetch', 'news-intake-scan',
+  ]) {
+    const text = source(slug);
+    assert.match(text, /"https:\/\/shihab-tech04\.github\.io"/);
+    assert.match(text, /ALLOWED_ORIGINS\.has\(origin\)/);
+    assert.doesNotMatch(text, /"Access-Control-Allow-Origin"\s*:\s*"\*"/);
+  }
+});

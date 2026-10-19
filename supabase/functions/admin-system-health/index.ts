@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.4";
 const ALLOWED_ORIGINS = new Set([
   "https://admin.shobaikejanao.com",
   "https://shihabshajib01-cell.github.io",
+  "https://shihab-tech04.github.io",
   "http://localhost:3000",
   "http://localhost:5173",
 ]);

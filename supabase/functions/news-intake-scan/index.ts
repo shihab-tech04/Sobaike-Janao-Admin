@@ -33,6 +33,7 @@ import {
 
 const ALLOWED_ORIGINS = new Set([
   "https://shihabshajib01-cell.github.io",
+  "https://shihab-tech04.github.io",
   "https://admin.shobaikejanao.com",
   "https://shobaikejanao.com",
   "http://localhost:5173",

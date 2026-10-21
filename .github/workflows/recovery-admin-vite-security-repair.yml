@@ -23,16 +23,38 @@ jobs:
           cache: npm
       - name: Install verified baseline
         run: npm ci
-      - name: Refresh only Vite dev dependency and lockfile
-        run: npm install --save-dev --save-exact vite@6.4.4 --package-lock-only --ignore-scripts
-      - name: Verify change scope
+      - name: Remove vulnerable unused-at-runtime legacy image minifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path('vite.config.ts')
+          s=f.read_text()
+          old_import="import viteImagemin from 'vite-plugin-imagemin';\\n".replace('\\n','\n')
+          if old_import not in s or '      viteImagemin({' not in s:
+              raise SystemExit('Source layout changed; refusing scripted removal')
+          s=s.replace(old_import,'')
+          begin=s.index('      viteImagemin({')
+          close=s.find('      }),',begin)
+          if close<0: raise SystemExit('Plugin closure not found')
+          s=s[:begin]+s[close+len('      }),')+1:]
+          if 'viteImagemin' in s: raise SystemExit('Incomplete plugin removal')
+          f.write_text(s)
+          PY
+          npm uninstall --save-dev --package-lock-only --ignore-scripts vite-plugin-imagemin
+          npm install --save-dev --save-exact vite@6.4.4 --package-lock-only --ignore-scripts
+          npm audit fix --package-lock-only --ignore-scripts
+      - name: Enforce scoped config and manifest changes
+        shell: bash
         run: |
           set -euo pipefail
           git diff --name-only > /tmp/changes.txt
-          if grep -vE '^(package.json|package-lock.json)$' /tmp/changes.txt; then exit 1; fi
-          grep -q '^package-lock.json$' /tmp/changes.txt
-          node -e "const p=require('./package.json'); if(p.devDependencies.vite!=='6.4.4') process.exit(1)"
-      - name: Security and functional validation
+          if grep -vE '^(package.json|package-lock.json|vite.config.ts)$' /tmp/changes.txt; then
+            echo 'Unexpected source diff'; exit 1
+          fi
+          node -e "const p=require('./package.json'); if(p.devDependencies.vite!=='6.4.4'||p.devDependencies['vite-plugin-imagemin'])process.exit(1)"
+      - name: Full dependency and source validation
         run: |
           npm ci
           npm audit --audit-level=moderate
@@ -44,7 +66,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
+          git add package.json package-lock.json vite.config.ts
           git diff --cached --quiet && exit 0
-          git commit -m "fix(security): pin patched Vite 6.4.4 and refresh Admin lockfile"
+          git commit -m "fix(security): remove vulnerable image-minifier chain and pin Vite 6.4.4"
           git push origin HEAD:recovery/2026-10-21-admin-consolidation

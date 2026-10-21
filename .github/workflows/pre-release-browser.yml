@@ -1,0 +1,82 @@
+name: Pre-release Built Browser Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  built-browser:
+    name: Admin exact-source built Chromium (isolated)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      VITE_BASE_PATH: './'
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_PUBLISHABLE_KEY: local-browser-only-placeholder
+      RECOVERY_BROWSER_APP: admin
+      RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked application dependencies
+        run: npm ci
+
+      - name: Install temporary Chromium runtime
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Build the checked-out PR source, not the deployed site
+        run: |
+          npm run build
+          test -f dist/index.html
+          printf '%s\n' "$GITHUB_SHA" > dist/browser-tested-sha.txt
+          sha256sum dist/index.html | tee "$RUNNER_TEMP/built-index.sha256"
+
+      - name: Start exact candidate dist via loopback preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > "$RUNNER_TEMP/preview.log" 2>&1 &
+          curl --fail --silent --show-error --retry 25 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/ -o "$RUNNER_TEMP/served-index.html"
+          cmp dist/index.html "$RUNNER_TEMP/served-index.html"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFile} from 'node:fs/promises';
+          const html = await readFile('dist/index.html', 'utf8');
+          assert.match(html, /id=["']root["']/);
+          assert.doesNotMatch(html, /\/src\/main\.tsx/);
+          const scripts = [...html.matchAll(/<script[^>]+src=["']([^"']+\.js)["']/g)].map(match => match[1]);
+          assert.ok(scripts.length, 'built JS entry must be linked');
+          for (const path of scripts) {
+            const response = await fetch(new URL(path, 'http://127.0.0.1:4173/'));
+            assert.equal(response.status, 200, `missing JS bundle: ${path}`);
+            assert.match(response.headers.get('content-type') || '', /javascript/, 'JS asset must not be an HTML fallback');
+          }
+          console.log('Exact built dist, JS assets and loopback response verified.');
+          NODE
+
+      - name: Responsive EN/BN Chromium checks
+        run: node tests/recovery-browser-smoke.mjs
+
+      - name: Save exact-SHA browser evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-built-browser-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/sobaike-responsive-smoke/
+            ${{ runner.temp }}/preview.log
+            ${{ runner.temp }}/built-index.sha256
+            dist/browser-tested-sha.txt

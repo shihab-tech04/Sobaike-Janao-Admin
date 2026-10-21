@@ -131,6 +131,17 @@ try {
         }).filter(x => x.right > document.documentElement.clientWidth + 3)
           .sort((a,b) => b.right-a.right).slice(0,20));
       console.log('BANNER_MOBILE_OVERFLOW_ELEMENTS',JSON.stringify(offenders));
+      const dimensions=await page.evaluate(()=>({
+        viewport:window.innerWidth,htmlClient:document.documentElement.clientWidth,
+        htmlScroll:document.documentElement.scrollWidth,
+        bodyClient:document.body.clientWidth,bodyScroll:document.body.scrollWidth,
+        scrollable:[...document.querySelectorAll('body *')].map(el=>({
+          tag:el.tagName,id:el.id,className:typeof el.className==='string'?el.className.slice(0,80):'',
+          scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,left:Math.round(el.getBoundingClientRect().left),
+          right:Math.round(el.getBoundingClientRect().right)
+        })).filter(x=>x.scrollWidth>x.clientWidth+40).sort((a,b)=>(b.scrollWidth-b.clientWidth)-(a.scrollWidth-a.clientWidth)).slice(0,16)
+      }));
+      console.log('BANNER_MOBILE_WIDTH_DIAG',JSON.stringify(dimensions));
     }
     assert.ok(overflow<=1,'Banner CMS responsive overflow at '+width+': '+overflow);
     await page.screenshot({path:join(screenshotDir,'B2-'+width+'-banner-preview.png'),fullPage:true});

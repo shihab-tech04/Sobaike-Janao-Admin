@@ -155,6 +155,16 @@ jobs:
       - name: Assert supplement parity and role restrictions
         run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/phase02_assert_function_snapshot.sql
 
+      # B4 candidate affects only disposable localhost. It must not be
+      # included in production migrations before independent approval.
+      - name: Test stricter complaint-evidence Storage RLS in disposable database
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --single-transaction \
+            --command "SET recovery.test_only = 'true'" \
+            --file test-only/b4-evidence-storage-permission-candidate.sql
+
       - name: Apply Phase 12 review-only News Intake guard after frozen baseline assertions
         run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file supabase/migrations/20261019000200_news_intake_explicit_review_only.sql
 

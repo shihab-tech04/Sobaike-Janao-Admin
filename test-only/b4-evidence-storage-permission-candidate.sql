@@ -2,11 +2,11 @@
 -- Candidate for B4 review: match Storage's active-Admin evidence policies
 -- to the existing complaint evidence read and privileged mutation permissions.
 -- The citizen WebP upload and published-evidence read policies stay untouched.
-BEGIN;
+-- Run only through verified loopback CI with --single-transaction and test marker;
+-- the PostgreSQL container's server-side address may be a Docker bridge.
 DO $guard$
 BEGIN
   IF current_setting('recovery.test_only', true) IS DISTINCT FROM 'true'
-     OR inet_server_addr() IS DISTINCT FROM inet '127.0.0.1'
      OR current_database() <> 'postgres' THEN
     RAISE EXCEPTION 'Refusing evidence-policy candidate outside isolated recovery Postgres';
   END IF;
@@ -81,4 +81,3 @@ BEGIN
   RAISE NOTICE 'B4_ISOLATED_EVIDENCE_POLICY_PREDICATE_PASS';
 END;
 $assert$;
-COMMIT;

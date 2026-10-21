@@ -165,6 +165,13 @@ export const NewsIntakePage: React.FC = () => {
     () => (manualRun?.items ?? []).filter((item) => item.itemKind === 'article'),
     [manualRun]
   );
+  // Preserve source-level failures beside the reviewable articles. A failed
+  // publisher must never be mistaken for a selectable publication candidate.
+  const sourceFailures = useMemo(
+    () => (manualRun?.items ?? []).filter((item) =>
+      item.itemKind === 'source' && item.action === 'error'),
+    [manualRun]
+  );
   const candidates = useMemo(
     () => [
       ...getManualNewsCandidates(manualRun),
@@ -410,6 +417,27 @@ export const NewsIntakePage: React.FC = () => {
               </p>
             </CardHeader>
             <CardContent>
+              {sourceFailures.length > 0 && (
+                <section aria-label={isBn ? 'উৎস পরীক্ষার ত্রুটি' : 'Source scan errors'} className="mb-4 rounded-md border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                  <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    {isBn ? 'উৎস পরীক্ষার ত্রুটি' : 'Source scan errors'} ({localizeDigits(sourceFailures.length, isBn)})
+                  </h3>
+                  <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                    {isBn
+                      ? 'ব্যর্থ উৎসের সংবাদ প্রকাশের জন্য নির্বাচন করা হয়নি। অন্য উৎসের পর্যালোচনাযোগ্য সংবাদ সংরক্ষিত আছে।'
+                      : 'Failed sources are excluded from publication. Reviewable articles from other sources remain available.'}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {sourceFailures.map((item, index) => (
+                      <li key={text(item.id, `source-failure-${index}`)} className="break-words text-xs text-amber-900 dark:text-amber-200">
+                        <span className="font-semibold">{text(item.sourceHostname, isBn ? 'অজানা উৎস' : 'Unknown source')}</span>
+                        <span>: {text(item.reason, isBn ? 'উৎস পরীক্ষা ব্যর্থ' : 'Source check failed')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               {!manualRun ? (
                 <p className="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   {isBn ? 'অনুমোদিত সংবাদ উৎস থেকে প্রার্থী আনতে “উৎস ও ডুপ্লিকেট পরীক্ষা” চালান।' : 'Run “Check sources and duplicates” to load candidates from approved news sources.'}

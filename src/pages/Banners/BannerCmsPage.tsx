@@ -325,7 +325,7 @@ export const BannerCmsPage: React.FC = () => {
                 <CardHeader><CardTitle>{isBn ? 'বর্তমান প্রকাশিত কপি' : 'Published version'}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{textValue(selectedRow.published_content[language === 'bn' ? 'titleBn' : 'titleEn']) || '—'}</p>
-                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">{textValue(selectedRow.published_content[language === 'bn' ? 'desktopDescriptionBn' : 'desktopDescriptionEn']) || '—'}</p>
+                  <p className="break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">{textValue(selectedRow.published_content[language === 'bn' ? 'desktopDescriptionBn' : 'desktopDescriptionEn']) || '—'}</p>
                   <p className="break-all text-xs text-slate-500 dark:text-slate-400">{textValue(selectedRow.published_content.illustrationSrc) || '—'}</p>
                 </CardContent>
               </Card>

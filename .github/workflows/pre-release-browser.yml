@@ -21,6 +21,8 @@ jobs:
       RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -39,7 +41,7 @@ jobs:
         run: |
           npm run build
           test -f dist/index.html
-          printf '%s\n' "$GITHUB_SHA" > dist/browser-tested-sha.txt
+          git rev-parse HEAD > dist/browser-tested-sha.txt
           sha256sum dist/index.html | tee "$RUNNER_TEMP/built-index.sha256"
 
       - name: Start exact candidate dist via loopback preview
@@ -72,7 +74,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: admin-built-browser-${{ github.sha }}
+          name: admin-built-browser-${{ github.event.pull_request.head.sha || github.sha }}
           if-no-files-found: warn
           retention-days: 14
           path: |

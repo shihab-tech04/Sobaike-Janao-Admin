@@ -45,7 +45,7 @@ try {
     await panel.waitFor();
     assert.match(await panel.innerText(),/www\.tbsnews\.net/);
     assert.match(await panel.innerText(),/www\.thedailystar\.net/);
-    assert.equal((await panel.innerText().match(/HTTP 403/g)||[]).length,2);
+    assert.equal(((await panel.innerText()).match(/HTTP 403/g)||[]).length,2);
     await page.getByRole('button',{name:'Select All'}).click();
     await page.getByText('2 selected').waitFor();
     assert.equal(await page.getByRole('checkbox',{name:'Select Synthetic article held'}).isDisabled(),true);

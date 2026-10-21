@@ -1,6 +1,8 @@
 name: Recovery test-only backend baseline
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches:
       - recovery/2026-10-15-admin-modules
@@ -17,6 +19,8 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: supabase/setup-cli@v1
         with:

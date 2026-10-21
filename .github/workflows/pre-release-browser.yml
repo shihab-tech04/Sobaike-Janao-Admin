@@ -73,6 +73,24 @@ jobs:
       - name: Verify protected Admin modules and MFA reject anonymous visitors
         run: node tests/recovery-protected-routes-browser.mjs
 
+      # The unconfigured Vite development server must be just as fail-closed
+      # as a production build. No Supabase URL/key is provided to this server.
+      - name: Start unconfigured development build on isolated loopback
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: ''
+          VITE_SUPABASE_PUBLISHABLE_KEY: ''
+          VITE_SUPABASE_ANON_KEY: ''
+        run: |
+          set -euo pipefail
+          npx vite --host 127.0.0.1 --port 4175 --strictPort > "$RUNNER_TEMP/unconfigured-dev.log" 2>&1 &
+          curl --fail --silent --show-error --retry 25 --retry-connrefused --retry-delay 1 http://127.0.0.1:4175/ -o /dev/null
+
+      - name: Chromium rejects unconfigured development Admin sessions
+        env:
+          RECOVERY_DEV_BROWSER_BASE_URL: http://127.0.0.1:4175
+        run: node tests/recovery-unconfigured-dev-auth-browser.mjs
+
       # Separate isolated visual entry, compiled from the exact same checked-out
       # candidate sources; it never becomes a public/admin deployable artifact.
       - name: Build isolated B1/B2 source-identical fixture UI
@@ -104,5 +122,6 @@ jobs:
             ${{ runner.temp }}/preview.log
             ${{ runner.temp }}/sobaike-wave-b/
             ${{ runner.temp }}/wave-b-preview.log
+            ${{ runner.temp }}/unconfigured-dev.log
             ${{ runner.temp }}/built-index.sha256
             dist/browser-tested-sha.txt

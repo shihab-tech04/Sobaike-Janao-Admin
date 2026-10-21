@@ -3,10 +3,15 @@ import { chromium } from 'playwright';
 
 const origin = process.env.RECOVERY_BROWSER_BASE_URL;
 assert.ok(origin?.startsWith('http://127.0.0.1:'), 'Only isolated built candidate is allowed');
+// Match the actual AppRoutes.tsx protected shell, including nested CRUD,
+// special pages and the protected not-found branch. All fixture IDs are inert.
 const protectedPaths = [
-  '/', '/dashboard', '/complaints', '/responses', '/categories',
-  '/news-intake', '/banners', '/users', '/roles',
-  '/system-health', '/security/mfa', '/activity-log',
+  '/', '/dashboard', '/complaints', '/complaints/SYNTHETIC-UNAUTHORIZED',
+  '/responses', '/categories', '/news-intake', '/banners',
+  '/system-health', '/map', '/location-activity', '/notifications',
+  '/users', '/users/create', '/users/synthetic-user', '/users/synthetic-user/edit',
+  '/roles', '/roles/create', '/roles/synthetic-role', '/roles/synthetic-role/edit',
+  '/security/mfa', '/activity-log', '/unknown-admin-route',
 ];
 const browser = await chromium.launch({ headless: true });
 try {
@@ -34,7 +39,7 @@ try {
     }
     await context.close();
   }
-  console.log('ADMIN_UNAUTH_ROUTE_PASS: 12 protected hash routes incl. MFA, 390/1280px, no hosted requests, no private nav.');
+  console.log('ADMIN_UNAUTH_ROUTE_PASS: all 23 protected root/nested/hash routes incl. MFA, 390/1280px, no hosted requests, no private nav.');
 } finally {
   await browser.close();
 }

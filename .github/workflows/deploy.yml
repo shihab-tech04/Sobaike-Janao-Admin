@@ -55,6 +55,30 @@ jobs:
           fi
           echo "VERIFICATION PASSED: dist/index.html correctly references bundled assets."
 
+      - name: Stamp reproducible release manifest into deployed artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          dist = Path('dist')
+          index = dist / 'index.html'
+          if not index.is_file():
+              raise SystemExit('Missing built dist/index.html')
+          payload = {
+              'commit_sha': os.environ['GITHUB_SHA'],
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'index_sha256': hashlib.sha256(index.read_bytes()).hexdigest(),
+          }
+          (dist / 'release-manifest.json').write_text(
+              json.dumps(payload, sort_keys=True) + '\n', encoding='utf-8')
+          print('Stamped exact-source release manifest:', payload['commit_sha'])
+          PY
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -124,7 +148,7 @@ jobs:
       - name: Verify deployed Admin bundle
         shell: bash
         env:
-          SITE_URL: https://shihab-tech04.github.io/Sobaike-Janao-Admin/
+          SITE_URL: https://admin.shobaikejanao.com/
         run: |
           set -euo pipefail
           expected_asset=$(grep -o 'assets/index-[^" ]*\.js' dist/index.html | head -1)

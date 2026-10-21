@@ -70,6 +70,9 @@ jobs:
       - name: Responsive EN/BN Chromium checks
         run: node tests/recovery-browser-smoke.mjs
 
+      - name: Verify protected Admin modules and MFA reject anonymous visitors
+        run: node tests/recovery-protected-routes-browser.mjs
+
       - name: Save exact-SHA browser evidence and diagnostics
         if: always()
         uses: actions/upload-artifact@v4

@@ -184,39 +184,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               authService.logout().catch(() => {});
             }, 0);
           }
-        } else if (!isSupabaseConfigured && Boolean(typeof import.meta !== 'undefined' && import.meta.env?.DEV)) {
-          // In unconfigured DEV mode, check if user explicitly signed out
-          const wasExplicitSignout =
-            typeof window !== 'undefined' &&
-            localStorage.getItem('sobaike_explicit_signout') === 'true';
-
-          if (!wasExplicitSignout) {
-            const defaultUser: User = {
-              id: 'dev-admin-id-0001',
-              app_metadata: { provider: 'email' },
-              user_metadata: { name: 'System Administrator', full_name: 'System Administrator' },
-              aud: 'authenticated',
-              created_at: new Date().toISOString(),
-              email: 'admin@sobaike.org',
-              role: 'authenticated',
-            };
-            const defaultSession: Session = {
-              access_token: 'mock-dev-token-sobaike-admin',
-              token_type: 'bearer',
-              expires_in: 86400,
-              refresh_token: 'mock-refresh-token',
-              user: defaultUser,
-            };
-            setSession(defaultSession);
-            setUser(defaultUser);
-            setIsAdmin(true);
-            userRef.current = defaultUser;
-            isAdminRef.current = true;
-            await loadUserPermissions();
-            await refreshAssuranceLevel();
-          } else {
-            resetAuthState();
-          }
         } else {
           resetAuthState();
         }

@@ -123,6 +123,15 @@ try {
     await img.waitFor();
     await page.waitForFunction(()=>Array.from(document.images).some(x=>x.src.includes('public.synthetic.invalid')&&x.complete&&x.naturalWidth>0));
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
+    if (overflow > 1) {
+      const offenders = await page.evaluate(() =>
+        [...document.querySelectorAll('body *')].map(el => {
+          const r = el.getBoundingClientRect();
+          return { tag: el.tagName, id: el.id || '', className: typeof el.className === 'string' ? el.className.slice(0,100) : '', width: Math.round(r.width), right: Math.round(r.right), text: (el.textContent || '').slice(0,45) };
+        }).filter(x => x.right > document.documentElement.clientWidth + 3)
+          .sort((a,b) => b.right-a.right).slice(0,20));
+      console.log('BANNER_MOBILE_OVERFLOW_ELEMENTS',JSON.stringify(offenders));
+    }
     assert.ok(overflow<=1,'Banner CMS responsive overflow at '+width+': '+overflow);
     await page.screenshot({path:join(screenshotDir,'B2-'+width+'-banner-preview.png'),fullPage:true});
     if(width===390){

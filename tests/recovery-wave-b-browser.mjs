@@ -12,6 +12,12 @@ const browser=await chromium.launch({headless:true});
 const createPage = async (width=390) => {
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});
   const page=await context.newPage();
+  page.on('console', message => {
+    if (message.type() === 'error') console.log('BROWSER_CONSOLE_ERROR',message.text());
+  });
+  page.on('pageerror', error => console.log('BROWSER_PAGE_ERROR',error.message));
+  page.on('crash',()=>console.log('BROWSER_CRASH'));
+  page.on('close',()=>console.log('BROWSER_PAGE_CLOSED'));
   const external=[];
   await page.route('**/*', route=>{
     const url=new URL(route.request().url());

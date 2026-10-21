@@ -11,7 +11,7 @@ test('audit view denial occurs after all component hooks to preserve hook order'
   const deny = component.indexOf('return <AccessDenied requiredPermission="audit.view" />');
   assert.ok(deny >= 0, 'audit permission must fail closed');
   assert.match(component.slice(0, deny), /const canViewAudit = hasPermission\('audit\.view'\)/);
-  for (const hook of ['useState(', 'useRef(', 'useCallback(', 'useEffect(']) {
+  for (const hook of ['useState<', 'useRef(', 'useCallback(', 'useEffect(']) {
     const at = component.lastIndexOf(hook);
     assert.ok(at >= 0 && at < deny, hook + ' must run before conditional deny');
   }

@@ -38,6 +38,29 @@ const DESCRIPTION_LENGTHS = {
 
 const textValue = (value: unknown) => typeof value === 'string' ? value : '';
 const displayDate = (value: string | null, locale: string) => value ? new Date(value).toLocaleString(locale) : '—';
+/** The banner is served from the Public application, not the Admin origin.
+ * Reject protocol-relative URLs, active content, embedded credentials and
+ * traversal. Keep the stored publication contract unchanged.
+ */
+const publicIllustrationUrl = (value: unknown): string => {
+  const raw = textValue(value).trim();
+  if (!raw || raw.includes('\\') || raw.includes('..')) return '';
+  if (raw.startsWith('/') && !raw.startsWith('//')) {
+    if (!/^\/illustrations\/[a-zA-Z0-9/_-]+\.(jpg|jpeg|png|webp)$/i.test(raw)) return '';
+    const origin = import.meta.env.VITE_PUBLIC_SITE_ORIGIN || 'https://shobaikejanao.com';
+    try {
+      const site = new URL(origin);
+      if (site.protocol !== 'https:' || site.username || site.password || site.port || site.pathname !== '/') return '';
+      return new URL(raw, site).toString();
+    } catch { return ''; }
+  }
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port
+      ? url.toString() : '';
+  } catch { return ''; }
+};
+
 type BannerError = 'load' | 'draft-validation' | 'save' | 'publish-validation' | 'publish' | null;
 const BANNER_CATEGORY_LABELS: Record<string, { en: string; bn: string }> = {
   harassment: { en: 'Harassment & abuse', bn: 'হয়রানি ও নির্যাতন' },
@@ -75,6 +98,7 @@ export const BannerCmsPage: React.FC = () => {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<BannerError>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [previewImageFailed, setPreviewImageFailed] = useState(false);
 
   const loadRows = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -98,6 +122,8 @@ export const BannerCmsPage: React.FC = () => {
     setNotice(null);
   }, [selectedRow]);
 
+  const draftIllustrationUrl = publicIllustrationUrl(draft.illustrationSrc);
+  useEffect(() => { setPreviewImageFailed(false); }, [draftIllustrationUrl]);
   const isDirty = Boolean(selectedRow && JSON.stringify(draft) !== JSON.stringify(selectedRow.draft_content));
   const publishedMatchesDraft = Boolean(selectedRow && JSON.stringify(draft) === JSON.stringify(selectedRow.published_content));
   const requiredFieldsPresent = REQUIRED_TEXT_KEYS.every((key) => textValue(draft[key]).trim().length > 0);
@@ -271,6 +297,27 @@ export const BannerCmsPage: React.FC = () => {
                   </div>
                   {isDirty && <p className="text-right text-xs text-amber-700 dark:text-amber-300">{isBn ? 'প্রকাশের আগে খসড়া সংরক্ষণ করুন।' : 'Save the draft before publishing it.'}</p>}
                   {!descriptionLengthsValid && <p className="text-right text-xs text-amber-700 dark:text-amber-300">{isBn ? 'প্রকাশিত ব্যানারের সব বাংলা বিবরণ ৬০ এবং ইংরেজি বিবরণ ৬২ অক্ষরের হতে হবে।' : 'Published Bengali descriptions must be 60 characters and English descriptions 62 characters.'}</p>}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>{isBn ? 'ব্যানারের ছবির পূর্বরূপ' : 'Banner illustration preview'}</CardTitle></CardHeader>
+                <CardContent>
+                  {draftIllustrationUrl && !previewImageFailed ? (
+                    <img
+                      src={draftIllustrationUrl}
+                      alt={textValue(draft[language === 'bn' ? 'titleBn' : 'titleEn']) || (isBn ? 'ব্যানারের ছবি' : 'Banner illustration')}
+                      loading="lazy"
+                      onError={() => setPreviewImageFailed(true)}
+                      className="block aspect-video w-full rounded-md border border-slate-200 bg-slate-50 object-contain dark:border-slate-800 dark:bg-slate-950"
+                    />
+                  ) : (
+                    <p role="status" className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                      {isBn
+                        ? 'ছবির নিরাপদ ঠিকানা নেই অথবা ছবি লোড করা যায়নি।'
+                        : 'The illustration URL is invalid or the image could not be loaded.'}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 

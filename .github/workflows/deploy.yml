@@ -41,8 +41,8 @@ jobs:
 
       - name: Build production bundle
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://ahiaymyqfmyyrjkwgvhi.supabase.co' }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_3wqaYyxPJ6spRNS0jNOi4w_69Jqc3-b' }}
+          VITE_SUPABASE_URL: https://eztqgqgpluoqwmprgeas.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_M8nmD6rGWp42V9kIxHJU3A_-bx57_aY
         run: npm run build
 
       - name: Verify dist output

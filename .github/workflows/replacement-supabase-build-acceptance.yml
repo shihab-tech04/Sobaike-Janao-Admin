@@ -1,0 +1,62 @@
+name: Replacement Supabase Release Build Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replacement-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: https://eztqgqgpluoqwmprgeas.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_M8nmD6rGWp42V9kIxHJU3A_-bx57_aY
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build exact candidate with real replacement environment
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run lint
+          npm run build
+          test -f dist/index.html
+          grep -R -l --include='*.js' 'eztqgqgpluoqwmprgeas.supabase.co' dist/ >/dev/null
+          if grep -R -l --include='*.js' 'ahiaymyqfmyyrjkwgvhi.supabase.co' dist/; then
+            echo 'ERROR: original project is still embedded in the candidate bundle'
+            exit 1
+          fi
+      - name: Verify replacement anonymous API without writes
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base = process.env.VITE_SUPABASE_URL;
+          assert.equal(new URL(base).hostname, 'eztqgqgpluoqwmprgeas.supabase.co');
+          const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+          assert.ok(key.startsWith('sb_publishable_'));
+          async function call(name) {
+            const r = await fetch(new URL('/rest/v1/rpc/' + name, base), {
+              method: 'POST',
+              headers: {'apikey': key, 'Content-Type': 'application/json'},
+              body: '{}',
+              signal: AbortSignal.timeout(30000),
+            });
+            assert.equal(r.status, 200, name + ' must return HTTP 200');
+            return await r.json();
+          }
+          const cfg = await call('get_public_reporting_configuration');
+          const banners = await call('get_public_site_banners');
+          assert.equal(cfg.segments.length, 7);
+          assert.equal(cfg.forms.length, 27);
+          assert.equal(banners.length, 7);
+          console.log('REPLACEMENT_BUILD_AND_HOSTED_READ_PASS');
+          NODE

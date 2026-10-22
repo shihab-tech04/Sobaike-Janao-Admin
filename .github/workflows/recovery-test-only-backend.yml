@@ -155,15 +155,28 @@ jobs:
       - name: Assert supplement parity and role restrictions
         run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/phase02_assert_function_snapshot.sql
 
-      # B4 candidate affects only disposable localhost. It must not be
-      # included in production migrations before independent approval.
-      - name: Test stricter complaint-evidence Storage RLS in disposable database
+      # Verify that the actual production migration runs only against the
+      # loopback database already validated above. No hosted database is used.
+      - name: Apply production evidence Storage migration to disposable loopback
         shell: bash
         run: |
           set -euo pipefail
+          python3 - "$RECOVERY_LOCAL_DB_URL" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          target = urlparse(sys.argv[1])
+          if target.scheme not in {"postgres", "postgresql"} or target.hostname not in {"127.0.0.1", "localhost"} or target.port != 54322:
+              raise SystemExit("Refusing Storage migration test outside verified local port 54322.")
+          print("Verified production migration target is disposable loopback PostgreSQL.")
+          PY
           psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --single-transaction \
-            --command "SET recovery.test_only = 'true'" \
-            --file test-only/b4-evidence-storage-permission-candidate.sql
+            --file supabase/migrations/20261022000100_complaint_evidence_storage_permissions.sql
+
+      - name: Assert evidence permissions preserve Public and Banner policies
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --single-transaction \
+          --command "SET recovery.test_only = 'true'" \
+          --file test-only/assert-b4-evidence-storage-permissions.sql
 
       - name: Apply Phase 12 review-only News Intake guard after frozen baseline assertions
         run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file supabase/migrations/20261019000200_news_intake_explicit_review_only.sql

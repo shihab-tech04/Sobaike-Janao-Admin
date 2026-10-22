@@ -138,7 +138,7 @@ jobs:
               if [ "$status" = "completed" ]; then
                 break
               fi
-            elif [ "$attempt" -ge 6 ]; then
+            elif [ "$legacy_found" = "0" ] && [ "$attempt" -ge 6 ]; then
               echo "No legacy Pages run detected for this commit; continuing with the custom publisher."
               break
             fi

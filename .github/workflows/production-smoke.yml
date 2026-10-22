@@ -80,7 +80,11 @@ jobs:
           for path, kind in parser.assets:
               target = urljoin(origin, path)
               uri = urlparse(target)
-              if uri.scheme != 'https' or uri.hostname != host:
+              # Noto typography is loaded from the explicitly approved HTTPS Google Fonts stylesheet.
+              if uri.scheme != 'https':
+                  raise SystemExit(f'ERROR: non-HTTPS asset origin: {path}')
+              approved_font_stylesheet = kind == 'css' and uri.hostname == 'fonts.googleapis.com'
+              if uri.hostname != host and not approved_font_stylesheet:
                   raise SystemExit(f'ERROR: unexpected asset origin: {path}')
               with urlopen(Request(target, headers={'User-Agent': 'SobaikeReleaseSmoke/1.0'}), timeout=20) as response:
                   if response.status != 200:

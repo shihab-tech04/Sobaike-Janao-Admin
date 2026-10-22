@@ -45,6 +45,16 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_M8nmD6rGWp42V9kIxHJU3A_-bx57_aY
         run: npm run build
 
+      - name: Verify bundle is wired only to replacement Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R -l --include='*.js' 'eztqgqgpluoqwmprgeas.supabase.co' dist/ >/dev/null
+          if grep -R -l --include='*.js' 'ahiaymyqfmyyrjkwgvhi.supabase.co' dist/; then
+            echo 'ERROR: published bundle still includes original Supabase project'
+            exit 1
+          fi
+
       - name: Verify dist output
         run: |
           ls -la dist

@@ -1,0 +1,6 @@
+@import "../../src/index.css";
+/* Tailwind 4's isolated harness root must scan the actual Admin components.
+ * Without this @source, the fixture omits production utility classes and
+ * creates false-positive overflow. This file is never in deployable dist.
+ */
+@source "../../src";

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { DownloadMenu } from '@/components/ui/DownloadMenu';
@@ -23,6 +23,20 @@ import { complaintApi } from '@/services/api';
 import { exportComplaintsToCsv, exportComplaintsToPdf } from '@/utils';
 import { RefreshCw, ChevronLeft, ChevronRight, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 
+const visiblePages = (current: number, total: number): (number | 'ellipsis')[] => {
+  const pages = new Set([1, total]);
+  for (let page = Math.max(1, current - 1); page <= Math.min(total, current + 1); page++) pages.add(page);
+  if (current <= 3) { pages.add(2); pages.add(3); }
+  if (current >= total - 2) { pages.add(total - 1); pages.add(total - 2); }
+  const sorted = [...pages].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+  const result: (number | 'ellipsis')[] = [];
+  sorted.forEach((page, i) => {
+    if (i > 0 && page - sorted[i - 1] > 1) result.push('ellipsis');
+    result.push(page);
+  });
+  return result;
+};
+
 export const ComplaintsPage: React.FC = () => {
   const { language } = useLanguage();
   const { hasPermission } = useAuth();
@@ -32,6 +46,7 @@ export const ComplaintsPage: React.FC = () => {
 
   // State
   const [loading, setLoading] = useState<boolean>(true);
+  const requestSerial = useRef(0);
   const [loadError, setLoadError] = useState<boolean>(false);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [statusCounts, setStatusCounts] = useState<ComplaintStatusTabCount[]>([]);
@@ -44,6 +59,9 @@ export const ComplaintsPage: React.FC = () => {
 
   const [filters, setFilters] = useState<ComplaintFilterState>({
     searchQuery: '',
+    postedBy: 'all',
+    sortBy: 'created_at',
+    sortDirection: 'desc',
     status: 'all',
     category: 'all',
     subcategory: 'all',
@@ -61,6 +79,7 @@ export const ComplaintsPage: React.FC = () => {
   // Check if any filter is actively applied beyond defaults
   const hasActiveFilters = Boolean(
     filters.searchQuery.trim() !== '' ||
+      filters.postedBy !== 'all' ||
       filters.category !== 'all' ||
       filters.subcategory !== 'all' ||
       filters.location !== 'all' ||
@@ -72,23 +91,25 @@ export const ComplaintsPage: React.FC = () => {
 
   // Fetch complaints
   const fetchComplaints = useCallback(
-    async (pageToLoad = pagination.currentPage) => {
+    async (pageToLoad = pagination.currentPage, sizeToLoad = pagination.pageSize) => {
+      const requestId = ++requestSerial.current;
       setLoading(true);
       setLoadError(false);
       try {
         const response = await complaintApi.getComplaints(
           filters,
           pageToLoad,
-          pagination.pageSize
+          sizeToLoad
         );
+        if (requestId !== requestSerial.current) return;
         setComplaints(response.items);
         setPagination(response.pagination);
         setStatusCounts(response.statusCounts || []);
       } catch (error) {
         console.error('Failed to load complaints:', error);
-        setLoadError(true);
+        if (requestId === requestSerial.current) setLoadError(true);
       } finally {
-        setLoading(false);
+        if (requestId === requestSerial.current) setLoading(false);
       }
     },
     [filters, pagination.currentPage, pagination.pageSize]
@@ -129,6 +150,9 @@ export const ComplaintsPage: React.FC = () => {
   const handleResetFilters = () => {
     setFilters({
       searchQuery: '',
+      postedBy: 'all',
+      sortBy: filters.sortBy,
+      sortDirection: filters.sortDirection,
       status: filters.status, // preserve status tab
       category: 'all',
       subcategory: 'all',
@@ -144,6 +168,20 @@ export const ComplaintsPage: React.FC = () => {
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > pagination.totalPages) return;
     fetchComplaints(newPage);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    if (![6, 12, 24, 48].includes(size)) return;
+    setPagination((previous) => ({ ...previous, currentPage: 1, pageSize: size }));
+    void fetchComplaints(1, size);
+  };
+
+  const handleSort = (key: 'created_at' | 'status' | 'segment_id') => {
+    setFilters((previous) => ({
+      ...previous,
+      sortBy: key,
+      sortDirection: previous.sortBy === key && previous.sortDirection === 'asc' ? 'desc' : 'asc',
+    }));
   };
 
   // Fetch current filtered dataset for export
@@ -249,8 +287,8 @@ export const ComplaintsPage: React.FC = () => {
         title={isBn ? 'অভিযোগ ব্যবস্থাপনা' : 'Complaint Management'}
         description={
           isBn
-            ? 'নাগরিকদের জমা দেওয়া অভিযোগের তালিকা অনুসন্ধান, ফিল্টারিং ও ট্রায়াজ ব্যবস্থা'
-            : 'Explore, filter, search, and review all citizen-submitted civic complaints across wards'
+            ? 'নাগরিক ও যাচাইকৃত সূত্র থেকে আসা রিপোর্ট অনুসন্ধান, ফিল্টার ও পর্যালোচনা করুন'
+            : 'Explore, filter, and review citizen and verified-source reports'
         }
         actions={
           <div className="flex items-center gap-2">
@@ -397,6 +435,9 @@ export const ComplaintsPage: React.FC = () => {
           <div className="hidden md:block">
             <ComplaintTable
               complaints={complaints}
+              sortBy={filters.sortBy}
+              sortDirection={filters.sortDirection}
+              onSort={handleSort}
               loading={loading}
               hasActiveFilters={hasActiveFilters}
               onResetFilters={handleResetFilters}
@@ -416,6 +457,14 @@ export const ComplaintsPage: React.FC = () => {
           </div>
 
           {/* 5. Pagination Footer */}
+          <div className="flex items-center justify-end gap-2 px-1 text-xs text-slate-600 dark:text-slate-300">
+            <label htmlFor="complaint-page-size">{isBn ? 'প্রতি পৃষ্ঠায়' : 'Rows per page'}</label>
+            <select id="complaint-page-size" value={pagination.pageSize} disabled={loading}
+              onChange={(event) => handlePageSizeChange(Number(event.target.value))}
+              className="min-h-10 rounded-md border border-slate-300 bg-white px-2 dark:border-slate-700 dark:bg-slate-900">
+              {[6, 12, 24, 48].map((size) => <option value={size} key={size}>{formatNumber(size)}</option>)}
+            </select>
+          </div>
           {pagination.totalPages > 1 && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 px-1 w-full max-w-full">
               <Button
@@ -429,13 +478,16 @@ export const ComplaintsPage: React.FC = () => {
               </Button>
 
               <div className="flex items-center gap-1 overflow-x-auto max-w-full py-1">
-                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((p) => {
+                {visiblePages(pagination.currentPage, pagination.totalPages).map((p, i) => {
+                  if (p === 'ellipsis') return <span key={`gap-${i}`} aria-hidden="true" className="px-1">…</span>;
                   const isCurrent = p === pagination.currentPage;
                   return (
                     <button
                       key={p}
                       onClick={() => handlePageChange(p)}
                       disabled={loading}
+                      aria-current={isCurrent ? 'page' : undefined}
+                      aria-label={`${isBn ? 'পৃষ্ঠা' : 'Page'} ${formatNumber(p)}`}
                       className={`w-8 h-8 rounded-md text-xs font-mono font-medium transition-colors ${
                         isCurrent
                           ? 'bg-sky-600 text-white font-bold'

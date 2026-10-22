@@ -105,6 +105,8 @@ export interface ComplaintVersion {
 
 export interface Complaint {
   id: string;
+  /** Verified backend origin_type: sourced_report => Admin, citizen => User. */
+  postedBy?: 'admin' | 'user' | null;
   titleEn: string;
   titleBn: string;
   descriptionEn: string;
@@ -160,6 +162,9 @@ export interface ComplaintStatusTabCount {
 
 export interface ComplaintFilterState {
   searchQuery: string;
+  postedBy: 'all' | 'admin' | 'user';
+  sortBy?: 'created_at' | 'status' | 'segment_id';
+  sortDirection?: 'asc' | 'desc';
   status: ComplaintLifecycleStatus | 'all';
   category: string;
   subcategory: string;

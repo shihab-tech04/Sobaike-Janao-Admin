@@ -96,6 +96,12 @@ export const ComplaintFilters: React.FC<ComplaintFiltersProps> = ({
     { value: 'month', label: isBn ? 'গত ৩০ দিন' : 'Past 30 Days' },
   ];
 
+  const postedByOptions = [
+    { value: 'all', label: isBn ? 'সব উৎস' : 'All origins' },
+    { value: 'admin', label: isBn ? 'অ্যাডমিন' : 'Admin' },
+    { value: 'user', label: isBn ? 'ব্যবহারকারী' : 'User' },
+  ];
+
   // Helper to get readable label for active filter badges
   const getCategoryLabel = (val: string) =>
     categoryOptions.find((o) => o.value === val)?.label || val;
@@ -130,6 +136,13 @@ export const ComplaintFilters: React.FC<ComplaintFiltersProps> = ({
           value={filters.dateRange}
           onChange={(e) => onFilterChange('dateRange', e.target.value)}
           options={dateOptions}
+        />
+
+        <Select
+          label={isBn ? 'পোস্ট করেছেন' : 'Posted by'}
+          value={filters.postedBy}
+          onChange={(e) => onFilterChange('postedBy', e.target.value)}
+          options={postedByOptions}
         />
 
 
@@ -209,6 +222,16 @@ export const ComplaintFilters: React.FC<ComplaintFiltersProps> = ({
                 className="hover:opacity-75 cursor-pointer"
                 aria-label="Remove search filter"
               >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+
+          {filters.postedBy !== 'all' && (
+            <Badge status="info" size="sm" className="inline-flex items-center gap-1">
+              <span>{isBn ? 'পোস্ট করেছেন' : 'Posted by'}: {postedByOptions.find((item) => item.value === filters.postedBy)?.label}</span>
+              <button type="button" onClick={() => onFilterChange('postedBy', 'all')}
+                className="hover:opacity-75 cursor-pointer" aria-label={isBn ? 'উৎস ফিল্টার সরান' : 'Remove origin filter'}>
                 <X className="w-3 h-3" />
               </button>
             </Badge>

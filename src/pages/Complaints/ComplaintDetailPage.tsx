@@ -39,9 +39,10 @@ export const ComplaintDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperAdmin, assuranceLevel } = useAuth();
   const isBn = language === 'bn';
   const canViewEvidence = hasPermission('complaints.evidence_view');
+  const canViewReporterTelemetry = isSuperAdmin && assuranceLevel === 'aal2';
 
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<boolean>(false);
@@ -67,11 +68,12 @@ export const ComplaintDetailPage: React.FC = () => {
     setTimelineError(null);
     setEvidenceError(null);
     setReporterLocationError(null);
-    setReporterLocationDenied(false);
+    setReporterLocationDenied(!canViewReporterTelemetry);
+    setReporterLocation(null);
     try {
       const detailRes = await complaintApi.getComplaintDetail(id, {
         loadEvidence: canViewEvidence,
-        loadReporterLocation: true,
+        loadReporterLocation: canViewReporterTelemetry,
       });
 
       if (!detailRes || !detailRes.complaint) {
@@ -83,7 +85,7 @@ export const ComplaintDetailPage: React.FC = () => {
         setEvidenceError(detailRes.evidenceError || null);
         setReporterLocation(detailRes.reporterLocation || detailRes.complaint.reporterDeviceLocation || null);
         setReporterLocationError(detailRes.reporterLocationError || null);
-        setReporterLocationDenied(Boolean(detailRes.reporterLocationPermissionDenied));
+        setReporterLocationDenied(!canViewReporterTelemetry || Boolean(detailRes.reporterLocationPermissionDenied));
       }
     } catch (err) {
       console.error('Failed to fetch complaint detail:', err);
@@ -91,7 +93,7 @@ export const ComplaintDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, canViewEvidence]);
+  }, [id, canViewEvidence, canViewReporterTelemetry]);
 
   const fetchParties = useCallback(async () => {
     if (!id) return;
@@ -122,6 +124,10 @@ export const ComplaintDetailPage: React.FC = () => {
 
   const handleRetryReporterLocation = useCallback(async () => {
     if (!id) return;
+    if (!canViewReporterTelemetry) {
+      setReporterLocationDenied(true);
+      return;
+    }
     setReporterLocationLoading(true);
     setReporterLocationError(null);
     setReporterLocationDenied(false);
@@ -144,7 +150,7 @@ export const ComplaintDetailPage: React.FC = () => {
     } finally {
       setReporterLocationLoading(false);
     }
-  }, [id, complaint]);
+  }, [id, complaint, canViewReporterTelemetry]);
 
   const handleComplaintUpdated = useCallback(
     (

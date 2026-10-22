@@ -66,6 +66,7 @@ export interface SupabaseComplaintEvidenceRow {
 
 export interface SupabaseComplaintRow {
   id: string;
+  origin_type?: string | null;
   segment_id: string | null;
   subcategory_id: string | null;
   title: string | null;
@@ -377,6 +378,7 @@ export function mapSupabaseRowToComplaint(
 
   return {
     id: row.id,
+    postedBy: row.origin_type === 'sourced_report' ? 'admin' : row.origin_type === 'citizen' ? 'user' : null,
     titleEn,
     titleBn,
     descriptionEn,
@@ -544,6 +546,10 @@ export const supabaseComplaintService = {
       query = query.eq('status', filters.status);
     }
 
+    // Server-authoritative provenance. Never infer origin from identity or content.
+    if (filters.postedBy === 'admin') query = query.eq('origin_type', 'sourced_report');
+    if (filters.postedBy === 'user') query = query.eq('origin_type', 'citizen');
+
     // Filter by Category (segment_id)
     if (filters.category && filters.category !== 'all') {
       query = query.eq('segment_id', filters.category);
@@ -595,11 +601,14 @@ export const supabaseComplaintService = {
       }
     }
 
-    // Sort descending by creation date and apply pagination range
+    // Whitelisted database sort columns only; always break ties by report ID.
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-
-    query = query.order('created_at', { ascending: false }).range(from, to);
+    const sortBy = ['created_at', 'status', 'segment_id'].includes(filters.sortBy || '')
+      ? filters.sortBy!
+      : 'created_at';
+    const ascending = filters.sortDirection === 'asc';
+    query = query.order(sortBy, { ascending }).order('id', { ascending: true }).range(from, to);
 
     const { data, error, count } = await query;
 
@@ -997,7 +1006,8 @@ export const supabaseComplaintService = {
     const subcategoriesMap = new Map(subcategories.map((s) => [s.id, s]));
 
     const shouldLoadEvidence = options?.loadEvidence ?? true;
-    const shouldLoadReporterLocation = options?.loadReporterLocation ?? true;
+    // Private reporter telemetry must be explicitly requested by an authorized UI.
+    const shouldLoadReporterLocation = options?.loadReporterLocation === true;
 
     const timelinePromise = this.getComplaintTimeline(id)
       .then((data) => ({

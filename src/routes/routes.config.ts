@@ -4,11 +4,14 @@ import {
   AlertCircle,
   MessageSquare,
   FolderTree,
+  Newspaper,
+  Images,
   MapPin,
   MapPinned,
   ShieldCheck,
   Users,
   History,
+  Activity,
 } from 'lucide-react';
 import { TranslationDictionary } from '@/context/LanguageContext';
 
@@ -38,6 +41,13 @@ export const ADMIN_NAVIGATION_ITEMS: RouteItem[] = [
     requiredPermission: 'complaints.view',
   },
   {
+    path: '/news-intake',
+    labelKey: 'newsIntake',
+    defaultLabel: 'News Intake',
+    icon: Newspaper,
+    requiredPermission: 'complaints.publish',
+  },
+  {
     path: '/responses',
     labelKey: 'responses',
     defaultLabel: 'Responses',
@@ -50,6 +60,20 @@ export const ADMIN_NAVIGATION_ITEMS: RouteItem[] = [
     defaultLabel: 'Categories',
     icon: FolderTree,
     requiredPermission: 'categories.view',
+  },
+  {
+    path: '/banners',
+    labelKey: 'banners',
+    defaultLabel: 'Banner CMS',
+    icon: Images,
+    requiredPermission: 'banners.manage',
+  },
+  {
+    path: '/system-health',
+    labelKey: 'systemHealth',
+    defaultLabel: 'System Health',
+    icon: Activity,
+    requiredPermission: 'system_health.view',
   },
   {
     path: '/map',

@@ -59,6 +59,8 @@ export const NotificationsPage: React.FC = () => {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   const isMountedRef = useRef<boolean>(true);
+  // Invalidate older filter/page requests; a slow response must not replace a newer view.
+  const listRequestIdRef = useRef(0);
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -69,7 +71,9 @@ export const NotificationsPage: React.FC = () => {
   // Fetch initial notifications for current filter
   const loadNotifications = useCallback(
     async (filter: NotificationFilterType) => {
+      const requestId = ++listRequestIdRef.current;
       setIsLoading(true);
+      setIsLoadingMore(false);
       setError(null);
       setActionError(null);
 
@@ -89,7 +93,7 @@ export const NotificationsPage: React.FC = () => {
           category: categoryParam,
         });
 
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current || requestId !== listRequestIdRef.current) return;
 
         setNotifications(results);
         setHasMore(
@@ -98,19 +102,26 @@ export const NotificationsPage: React.FC = () => {
             : results.length === PAGE_SIZE
         );
       } catch (err: unknown) {
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current || requestId !== listRequestIdRef.current) return;
         console.error('Failed to load notifications list:', err);
         setError(
           err instanceof Error ? err.message : t.notifications.errorLoading
         );
       } finally {
-        if (isMountedRef.current) {
+        if (isMountedRef.current && requestId === listRequestIdRef.current) {
           setIsLoading(false);
         }
       }
     },
     [t.notifications.errorLoading]
   );
+
+  const switchFilter = (filter: NotificationFilterType) => {
+    if (filter === activeFilter) return;
+    listRequestIdRef.current += 1;
+    setIsLoadingMore(false);
+    setActiveFilter(filter);
+  };
 
   // Re-fetch when filter changes
   useEffect(() => {
@@ -122,6 +133,7 @@ export const NotificationsPage: React.FC = () => {
     if (isLoadingMore || !hasMore || notifications.length === 0) return;
 
     const lastItem = notifications[notifications.length - 1];
+    const requestId = listRequestIdRef.current;
     setIsLoadingMore(true);
     setActionError(null);
 
@@ -143,7 +155,7 @@ export const NotificationsPage: React.FC = () => {
         category: categoryParam,
       });
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestId !== listRequestIdRef.current) return;
 
       if (nextBatch.length > 0) {
         setNotifications((prev) => {
@@ -159,13 +171,13 @@ export const NotificationsPage: React.FC = () => {
           : nextBatch.length === PAGE_SIZE;
       setHasMore(batchHasMore);
     } catch (err: unknown) {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestId !== listRequestIdRef.current) return;
       console.error('Failed to load more notifications:', err);
       setActionError(
         err instanceof Error ? err.message : t.notifications.errorLoading
       );
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && requestId === listRequestIdRef.current) {
         setIsLoadingMore(false);
       }
     }
@@ -404,7 +416,7 @@ export const NotificationsPage: React.FC = () => {
                 key={filter.key}
                 type="button"
                 id={`notification-filter-tab-${filter.key}`}
-                onClick={() => setActiveFilter(filter.key)}
+                onClick={() => switchFilter(filter.key)}
                 className={cn(
                   'px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
                   isActive
@@ -509,7 +521,7 @@ export const NotificationsPage: React.FC = () => {
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={() => setActiveFilter('all')}
+                  onClick={() => switchFilter('all')}
                 >
                   {isBn ? 'সব বিজ্ঞপ্তি দেখুন' : 'View all notifications'}
                 </Button>

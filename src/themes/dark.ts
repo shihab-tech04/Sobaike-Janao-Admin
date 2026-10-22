@@ -7,11 +7,11 @@ import { ColorTokens, baseTokens } from './tokens';
  */
 export const darkColors: ColorTokens = {
   primary: {
-    DEFAULT: '#38bdf8', // Sky-400 (Lighter for dark background legibility)
-    hover: '#7dd3fc',   // Sky-300
-    active: '#bae6fd',  // Sky-200
-    subtle: 'rgba(56, 189, 248, 0.12)',
-    foreground: '#082f49', // Deep dark foreground on solid primary
+    DEFAULT: '#38AD8C', // Approved accessible teal on dark surfaces
+    hover: '#5bc7a8',
+    active: '#86ddc4',
+    subtle: 'rgba(56, 173, 140, 0.12)',
+    foreground: '#082a24',
   },
   secondary: {
     DEFAULT: '#f8fafc', // Slate-50
@@ -41,7 +41,7 @@ export const darkColors: ColorTokens = {
     subtle: '#1e293b',  // Slate-800
     DEFAULT: '#334155', // Slate-700
     strong: '#475569',  // Slate-600
-    focus: '#38bdf8',   // Sky-400
+    focus: '#38AD8C',
   },
   text: {
     primary: '#f8fafc',   // Slate-50

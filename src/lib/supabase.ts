@@ -1,25 +1,27 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const FALLBACK_SUPABASE_URL =
-  'https://ahiaymyqfmyyrjkwgvhi.supabase.co';
+// Unconfigured recovery previews must fail closed and must never inherit a
+// production Supabase URL. The reserved .invalid hostname cannot resolve.
+const DISABLED_SUPABASE_URL =
+  'https://sobaike-backend-not-configured.invalid';
 
-const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
-  'sb_publishable_3wqaYyxPJ6spRNS0jNOi4w_69Jqc3-b';
+const DISABLED_SUPABASE_PUBLISHABLE_KEY =
+  'recovery-preview-backend-disabled';
 
 const metaEnv = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
 
 const supabaseUrl =
-  metaEnv?.VITE_SUPABASE_URL ||
-  FALLBACK_SUPABASE_URL;
+  metaEnv?.VITE_SUPABASE_URL?.trim() ||
+  DISABLED_SUPABASE_URL;
 
 const supabaseAnonKey =
-  metaEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  metaEnv?.VITE_SUPABASE_ANON_KEY ||
-  FALLBACK_SUPABASE_PUBLISHABLE_KEY;
+  metaEnv?.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  metaEnv?.VITE_SUPABASE_ANON_KEY?.trim() ||
+  DISABLED_SUPABASE_PUBLISHABLE_KEY;
 
 export const isSupabaseConfigured = Boolean(
-  metaEnv?.VITE_SUPABASE_URL &&
-  (metaEnv?.VITE_SUPABASE_PUBLISHABLE_KEY || metaEnv?.VITE_SUPABASE_ANON_KEY)
+  metaEnv?.VITE_SUPABASE_URL?.trim() &&
+  (metaEnv?.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || metaEnv?.VITE_SUPABASE_ANON_KEY?.trim())
 );
 
 /**

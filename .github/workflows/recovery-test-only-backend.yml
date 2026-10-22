@@ -1,0 +1,229 @@
+name: Recovery test-only backend baseline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - recovery/2026-10-15-admin-modules
+      - recovery/2026-10-18-phase02-snapshot-test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply-verified-contract-baseline:
+    name: Apply current contract baseline on isolated local Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+
+      - name: Verify baseline manifest digest and safety markers
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+
+          manifest = json.loads(Path("test-only/baseline-manifest.json").read_text())
+          baseline = Path("test-only/current_contract_baseline.sql").read_bytes()
+          actual = hashlib.sha256(baseline).hexdigest()
+          expected = manifest["fixture"]["sha256"]
+          if actual != expected:
+              raise SystemExit(f"Baseline SHA-256 mismatch: expected {expected}, got {actual}")
+          if not manifest["notHistoricalMigrationSeries"] or not manifest["notProductionDeployable"]:
+              raise SystemExit("Refusing a fixture without its test-only/non-production safety markers")
+          if manifest["fixture"]["includesApplicationRows"] or manifest["fixture"]["includesReporterRecords"]:
+              raise SystemExit("Refusing a fixture marked as containing application or reporter rows")
+          print(f"Verified test-only baseline digest {actual} ({len(baseline)} bytes).")
+          PY
+
+      - name: Stage hosted-parity Admin account Edge source only in disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$GITHUB_WORKSPACE/test-only/local-supabase/supabase/functions"
+          mkdir -p "$target"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/admin-create-user" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/admin-delete-user" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/news-intake-scan" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/news-intake-fetch" "$target/"
+          cp -a "$GITHUB_WORKSPACE/supabase/functions/_shared" "$target/"
+          test -s "$target/admin-create-user/index.ts"
+          test -s "$target/admin-delete-user/index.ts"
+
+      - name: Start disposable local Supabase project
+        working-directory: test-only/local-supabase
+        run: supabase start
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Verify local target and export its temporary database URL
+        working-directory: test-only/local-supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase status --output env > "$RUNNER_TEMP/sobaike-admin-local.env"
+          python3 - "$RUNNER_TEMP/sobaike-admin-local.env" "$GITHUB_ENV" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          values = {}
+          for line in open(sys.argv[1], encoding="utf-8"):
+              if "=" not in line:
+                  continue
+              name, value = line.rstrip("\n").split("=", 1)
+              values[name] = value.strip().strip('"')
+          db_url = values.get("DB_URL") or values.get("DATABASE_URL")
+          api_url = values.get("API_URL") or values.get("SUPABASE_URL")
+          anon_key = values.get("ANON_KEY") or values.get("SUPABASE_ANON_KEY")
+          service_key = values.get("SERVICE_ROLE_KEY") or values.get("SUPABASE_SERVICE_ROLE_KEY")
+          parsed = urlparse(db_url or "")
+          if parsed.scheme not in {"postgres", "postgresql"} or parsed.hostname not in {"127.0.0.1", "localhost"} or parsed.port != 54322:
+              raise SystemExit("Refusing a non-loopback database target; expected the disposable local port 54322.")
+          api_parsed = urlparse(api_url or "")
+          if api_parsed.scheme != "http" or api_parsed.hostname != "127.0.0.1" or api_parsed.port != 54321 or not anon_key or not service_key:
+              raise SystemExit("Refusing unexpected local API target or missing anonymous key.")
+          with open(sys.argv[2], "a", encoding="utf-8") as output:
+              output.write(f"RECOVERY_LOCAL_DB_URL={db_url}\n")
+              output.write(f"RECOVERY_LOCAL_API_URL={api_url}\n")
+              output.write(f"RECOVERY_LOCAL_ANON_KEY={anon_key}\n")
+              output.write(f"RECOVERY_LOCAL_SERVICE_ROLE_KEY={service_key}\n")
+          print("Verified database target is loopback-only on port 54322.")
+          PY
+
+      - name: Permit Storage-owner role switch in the disposable database only
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The recovered Storage tables belong to Supabase's own Storage role.
+          # Never change their owner or omit their captured grants to pass a test.
+          executor=$(psql "$RECOVERY_LOCAL_DB_URL" --tuples-only --no-align --command 'SELECT current_user')
+          owner=$(psql "$RECOVERY_LOCAL_DB_URL" --tuples-only --no-align --command "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'storage.objects'::regclass")
+          if [[ "$executor" != postgres || "$owner" != supabase_storage_admin ]]; then
+            echo "Refusing local role setup: unexpected executor or Storage table owner."
+            exit 1
+          fi
+
+          # Match exactly the CLI project's local DB container, never a hosted DB.
+          container=$(docker ps --quiet --filter 'name=^/supabase_db_sobaike-admin-recovery-test-only$')
+          if [[ -z "$container" || "$container" == *$'\n'* ]]; then
+            echo "Refusing local role setup: expected exactly one disposable DB container."
+            exit 1
+          fi
+          docker exec "$container" psql -U supabase_admin -d postgres --set ON_ERROR_STOP=1 \
+            --command 'GRANT supabase_storage_admin TO postgres WITH SET TRUE, INHERIT FALSE, ADMIN FALSE'
+
+          can_switch=$(psql "$RECOVERY_LOCAL_DB_URL" --tuples-only --no-align \
+            --command "SELECT pg_has_role(current_user, 'supabase_storage_admin', 'SET')")
+          if [[ "$can_switch" != t ]]; then
+            echo "Storage-owner role switch was not granted in the disposable database."
+            exit 1
+          fi
+
+      - name: Apply evidence-derived test-only baseline
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/current_contract_baseline.sql
+
+      - name: Replay additional catalog-only function definitions in isolated transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The SQL parts refuse to run without this per-session test-only marker.
+          # All three files and the safety marker share one loopback transaction.
+          psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --single-transaction \
+            --command "SET recovery.test_only = 'true'" \
+            --file test-only/phase02_missing_functions_part1.sql \
+            --file test-only/phase02_missing_functions_part2.sql \
+            --file test-only/phase02_missing_functions_part3.sql
+
+      - name: Seed seven synthetic taxonomy categories and verify anon read
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/local-supabase/seed_synthetic_taxonomy.sql
+
+      - name: Assert recovered grants, RLS, Storage, functions, and triggers
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/local-supabase/assert_contracts.sql
+
+      - name: Assert supplement parity and role restrictions
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file test-only/phase02_assert_function_snapshot.sql
+
+      # Verify that the actual production migration runs only against the
+      # loopback database already validated above. No hosted database is used.
+      - name: Apply production evidence Storage migration to disposable loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RECOVERY_LOCAL_DB_URL" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          target = urlparse(sys.argv[1])
+          if target.scheme not in {"postgres", "postgresql"} or target.hostname not in {"127.0.0.1", "localhost"} or target.port != 54322:
+              raise SystemExit("Refusing Storage migration test outside verified local port 54322.")
+          print("Verified production migration target is disposable loopback PostgreSQL.")
+          PY
+          psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --single-transaction \
+            --file supabase/migrations/20261022000100_complaint_evidence_storage_permissions.sql
+
+      - name: Assert evidence permissions preserve Public and Banner policies
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --single-transaction \
+          --command "SET recovery.test_only = 'true'" \
+          --file test-only/assert-b4-evidence-storage-permissions.sql
+
+      - name: Apply Phase 12 review-only News Intake guard after frozen baseline assertions
+        run: psql "$RECOVERY_LOCAL_DB_URL" --set ON_ERROR_STOP=1 --file supabase/migrations/20261019000200_news_intake_explicit_review_only.sql
+
+      - name: Install locked Admin test dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Exercise Auth, real synthetic TOTP AAL2, RBAC and revocation
+        run: node test-only/phase09-isolated-auth-mfa.mjs
+
+      - name: Verify synthetic complaint and response moderation through Public SQL reads
+        run: node test-only/phase10-isolated-moderation.mjs
+
+      - name: Verify bilingual form builder and taxonomy parity in Admin, Public, and News Intake
+        run: node test-only/phase11-isolated-form-builder.mjs
+
+      - name: Assert scheduled News Intake remains draft-only, deduplicated, and service-authorized
+        run: node test-only/phase12-isolated-news-intake.mjs
+
+      - name: Start recovered Admin account Edge functions locally
+        working-directory: test-only/local-supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions serve --no-verify-jwt > "$RUNNER_TEMP/sobaike-admin-edge.log" 2>&1 &
+          echo "LOCAL_ADMIN_EDGE_PID=$!" >> "$GITHUB_ENV"
+          for attempt in {1..60}; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              "$RECOVERY_LOCAL_API_URL/functions/v1/admin-create-user" || true)
+            if [[ "$code" == 405 ]]; then
+              echo "Local Admin account Edge functions are serving."
+              exit 0
+            fi
+            sleep 1
+          done
+          tail -60 "$RUNNER_TEMP/sobaike-admin-edge.log"
+          exit 1
+
+      - name: Verify Admin Edge account methods and unauthorized denial
+        run: node test-only/admin-edge-auth-smoke.mjs
+
+      - name: Scan real controlled HTTPS article fixture into a private News Intake draft only
+        run: node test-only/phase12-controlled-news-edge.mjs
+
+      - name: Stop disposable local project
+        if: always()
+        working-directory: test-only/local-supabase
+        run: |
+          if [[ -n "${LOCAL_ADMIN_EDGE_PID:-}" ]]; then kill "$LOCAL_ADMIN_EDGE_PID" 2>/dev/null || true; fi
+          supabase stop >/dev/null 2>&1 || true

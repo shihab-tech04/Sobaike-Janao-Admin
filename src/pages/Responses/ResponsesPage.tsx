@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -38,6 +38,18 @@ const INITIAL_FILTERS: ResponseFilterState = {
   dateRange: {},
 };
 
+const responsePages = (current: number, total: number): (number | 'ellipsis')[] => {
+  const choices = new Set([1, total]);
+  for (let p = Math.max(1, current - 1); p <= Math.min(total, current + 1); p++) choices.add(p);
+  const sorted = [...choices].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const list: (number | 'ellipsis')[] = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) list.push('ellipsis');
+    list.push(p);
+  });
+  return list;
+};
+
 export const ResponsesPage: React.FC = () => {
   const { language } = useLanguage();
   const isBn = language === 'bn';
@@ -51,6 +63,8 @@ export const ResponsesPage: React.FC = () => {
 
   // State
   const [loading, setLoading] = useState<boolean>(true);
+  const requestSerial = useRef(0);
+  const [pageSize, setPageSize] = useState(20);
   const [error, setError] = useState<string | null>(null);
   const [responses, setResponses] = useState<ResponseItem[]>([]);
   const [statusCounts, setStatusCounts] = useState<{
@@ -102,6 +116,7 @@ export const ResponsesPage: React.FC = () => {
   // Fetch responses queue from backend
   const fetchResponses = useCallback(
     async (pageToFetch = 1) => {
+      const requestId = ++requestSerial.current;
       setLoading(true);
       setError(null);
 
@@ -113,7 +128,8 @@ export const ResponsesPage: React.FC = () => {
           dateRange: filters.dateRange,
         };
 
-        const res = await responseApi.getResponses(queryFilters, pageToFetch, 20);
+        const res = await responseApi.getResponses(queryFilters, pageToFetch, pageSize);
+        if (requestId !== requestSerial.current) return;
 
         setResponses(res.responses);
         setPagination({
@@ -126,12 +142,12 @@ export const ResponsesPage: React.FC = () => {
       } catch (err: unknown) {
         console.error('Failed to load responses:', err);
         const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-        setError(message);
+        if (requestId === requestSerial.current) setError(message);
       } finally {
-        setLoading(false);
+        if (requestId === requestSerial.current) setLoading(false);
       }
     },
-    [debouncedSearch, filters.status, filters.responseType, filters.dateRange]
+    [debouncedSearch, filters.status, filters.responseType, filters.dateRange, pageSize]
   );
 
   // Re-fetch when debounced search or filters change (reset to page 1)
@@ -579,6 +595,15 @@ export const ResponsesPage: React.FC = () => {
             isLoading={loading}
           />
 
+          <div className="flex items-center justify-end gap-2 px-1 text-xs text-slate-600 dark:text-slate-300">
+            <label htmlFor="response-page-size">{isBn ? 'প্রতি পৃষ্ঠায়' : 'Rows per page'}</label>
+            <select id="response-page-size" value={pageSize} disabled={loading}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              className="min-h-10 rounded-md border border-slate-300 bg-white px-2 dark:border-slate-700 dark:bg-slate-900">
+              {[10, 20, 50].map((size) => <option key={size} value={size}>{formatNumber(size)}</option>)}
+            </select>
+          </div>
+
           {/* Pagination Controls */}
           {pagination.totalPages > 1 && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 px-1 w-full max-w-full">
@@ -595,7 +620,8 @@ export const ResponsesPage: React.FC = () => {
               </Button>
 
               <div className="flex items-center gap-1 overflow-x-auto max-w-full py-1">
-                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((p) => {
+                {responsePages(pagination.page, pagination.totalPages).map((p, i) => {
+                  if (p === 'ellipsis') return <span key={`gap-${i}`} className="px-1" aria-hidden="true">…</span>;
                   const isCurrent = p === pagination.page;
                   return (
                     <button
@@ -603,6 +629,8 @@ export const ResponsesPage: React.FC = () => {
                       type="button"
                       onClick={() => handlePageChange(p)}
                       disabled={loading}
+                      aria-current={isCurrent ? 'page' : undefined}
+                      aria-label={`${isBn ? 'পৃষ্ঠা' : 'Page'} ${formatNumber(p)}`}
                       className={`min-w-[36px] h-9 px-2 rounded-md text-xs font-mono font-medium transition-colors ${
                         isCurrent
                           ? 'bg-sky-600 text-white font-bold'

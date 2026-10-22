@@ -11,6 +11,8 @@ import {
 import { AdminLayout } from '@/layouts';
 import { LoadingState, AccessDenied } from '@/components/common';
 import { useAuth } from '@/context/AuthContext';
+import { requiresAal2 } from '@/services/auth/permissionService';
+import { MfaPage } from '@/pages/Login/MfaPage';
 import { ADMIN_NAVIGATION_ITEMS, getFirstAccessibleRoute } from '@/routes/routes.config';
 import {
   LoginPage,
@@ -31,6 +33,9 @@ import {
   EditUserPage,
   NotificationsPage,
   ActivityLogPage,
+  NewsIntakePage,
+  BannerCmsPage,
+  SystemHealthPage,
   NotFoundPage,
 } from '@/pages';
 
@@ -73,7 +78,8 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   fallbackPath,
   children,
 }) => {
-  const { hasPermission, permissionsLoading, permissionsError, isLoading, isBootstrapMode } = useAuth();
+  const { hasPermission, permissions, assuranceLevel, permissionsLoading, permissionsError, isLoading, isBootstrapMode } = useAuth();
+  const location = useLocation();
 
   if (isLoading || permissionsLoading) {
     return <LoadingState fullHeight message="Verifying permissions..." />;
@@ -89,6 +95,10 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
         isErrorState={true}
       />
     );
+  }
+
+  if (permissions.includes(requiredPermission) && requiresAal2(requiredPermission) && assuranceLevel !== 'aal2') {
+    return <Navigate to="/security/mfa" state={{ from: { pathname: location.pathname } }} replace />;
   }
 
   if (!hasPermission(requiredPermission)) {
@@ -108,7 +118,7 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
  * Directs user to the first accessible navigation item they have permission for.
  */
 const RootRedirect: React.FC = () => {
-  const { session, user, isAdmin, isLoading, permissionsLoading, hasPermission, isBootstrapMode } = useAuth();
+  const { session, user, isAdmin, isLoading, permissionsLoading, permissions, assuranceLevel, hasPermission, isBootstrapMode } = useAuth();
 
   if (isLoading || permissionsLoading) {
     return <LoadingState fullHeight message="Verifying session..." />;
@@ -119,6 +129,10 @@ const RootRedirect: React.FC = () => {
   }
 
   const targetPath = getFirstAccessibleRoute(hasPermission, isBootstrapMode);
+  if (!hasPermission('dashboard.view') && targetPath === '/dashboard'
+    && assuranceLevel !== 'aal2' && permissions.some(requiresAal2)) {
+    return <Navigate to="/security/mfa" replace />;
+  }
   return <Navigate to={targetPath} replace />;
 };
 
@@ -127,7 +141,7 @@ const RootRedirect: React.FC = () => {
  * If an active authenticated admin visits /login, redirects to their accessible home.
  */
 const PublicAuthRoute: React.FC = () => {
-  const { session, user, isAdmin, isLoading, permissionsLoading, hasPermission, isBootstrapMode } = useAuth();
+  const { session, user, isAdmin, isLoading, permissionsLoading, permissions, assuranceLevel, hasPermission, isBootstrapMode } = useAuth();
   const location = useLocation();
 
   if (isLoading || permissionsLoading) {
@@ -136,7 +150,10 @@ const PublicAuthRoute: React.FC = () => {
 
   if (session && user && isAdmin) {
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
-    const target = from || getFirstAccessibleRoute(hasPermission, isBootstrapMode);
+    const home = getFirstAccessibleRoute(hasPermission, isBootstrapMode);
+    const needsMfa = home === '/dashboard' && !hasPermission('dashboard.view')
+      && assuranceLevel !== 'aal2' && permissions.some(requiresAal2);
+    const target = from || (needsMfa ? '/security/mfa' : home);
     return <Navigate to={target} replace />;
   }
 
@@ -151,6 +168,7 @@ const routes = createRoutesFromElements(
     {/* Protected Admin Shell Routes */}
     <Route element={<ProtectedAdminRoute />}>
       <Route path="/" element={<RootRedirect />} />
+      <Route path="/security/mfa" element={<MfaPage />} />
       
       <Route
         path="/dashboard"
@@ -165,6 +183,14 @@ const routes = createRoutesFromElements(
         element={
           <PermissionGuard requiredPermission="complaints.view">
             <ComplaintsPage />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/news-intake"
+        element={
+          <PermissionGuard requiredPermission="complaints.publish">
+            <NewsIntakePage />
           </PermissionGuard>
         }
       />
@@ -189,6 +215,22 @@ const routes = createRoutesFromElements(
         element={
           <PermissionGuard requiredPermission="categories.view">
             <CategoriesPage />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/banners"
+        element={
+          <PermissionGuard requiredPermission="banners.manage">
+            <BannerCmsPage />
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/system-health"
+        element={
+          <PermissionGuard requiredPermission="system_health.view">
+            <SystemHealthPage />
           </PermissionGuard>
         }
       />

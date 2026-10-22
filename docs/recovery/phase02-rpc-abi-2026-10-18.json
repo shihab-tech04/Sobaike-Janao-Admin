@@ -1,0 +1,1615 @@
+{
+  "date_utc": "2026-10-18",
+  "project_id": "ahiaymyqfmyyrjkwgvhi",
+  "source": "Read-only PostgreSQL pg_proc signature/grant catalog and TypeScript AST literal-call sites from recovery branches",
+  "method": "Object argument keys compared to identity argument names. Only non-defaulted positional arguments are required. Dynamic-object call sites manually reviewed.",
+  "totals": {
+    "static_call_sites": 81,
+    "static_function_names": 72,
+    "dynamic_dispatch_functions": 3,
+    "distinct_function_names": 75,
+    "directly_comparable_calls": 78,
+    "dynamic_object_calls": 3,
+    "name_or_argument_mismatches": 0
+  },
+  "contracts": [
+    {
+      "rpc": "admin_begin_news_intake_run",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1694,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_check_news_source_domain",
+      "signature": "p_url text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-fetch/index.ts",
+          "line": 231,
+          "argument_keys": [
+            "p_url"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 826,
+          "argument_keys": [
+            "p_url"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_check_source_duplicate",
+      "signature": "p_canonical_url text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1513,
+          "argument_keys": [
+            "p_canonical_url"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_complete_news_intake_item_review",
+      "signature": "p_item_id uuid, p_report_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/recoveryApi.ts",
+          "line": 110,
+          "argument_keys": [
+            "p_item_id",
+            "p_report_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_create_role",
+      "signature": "p_name_en text, p_name_bn text, p_active boolean, p_permission_ids text[], p_description text",
+      "trailing_defaults": 4,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/roleApi.ts",
+          "line": 165,
+          "argument_keys": [
+            "dynamic"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_create_sourced_report_from_intake",
+      "signature": "p_payload jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/recoveryApi.ts",
+          "line": 98,
+          "argument_keys": [
+            "p_payload"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_edit_complaint",
+      "signature": "p_complaint_id text, p_title_en text, p_title_bn text, p_description_en text, p_description_bn text, p_segment_id text, p_subcategory_id text, p_priority text, p_ward text, p_zone text, p_address_en text, p_address_bn text, p_notes text",
+      "trailing_defaults": 12,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseComplaintService.ts",
+          "line": 1180,
+          "argument_keys": [
+            "p_complaint_id",
+            "p_title_en",
+            "p_title_bn",
+            "p_description_en",
+            "p_description_bn",
+            "p_segment_id",
+            "p_subcategory_id",
+            "p_priority",
+            "p_ward",
+            "p_zone",
+            "p_address_en",
+            "p_address_bn",
+            "p_notes"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_finalize_user_membership",
+      "signature": "p_user_id uuid, p_display_name text, p_role_id text, p_active boolean",
+      "trailing_defaults": 3,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-create-user/index.ts",
+          "line": 221,
+          "argument_keys": [
+            "p_user_id",
+            "p_display_name",
+            "p_role_id",
+            "p_active"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_finish_news_intake_run",
+      "signature": "p_run_id uuid, p_status text, p_error text",
+      "trailing_defaults": 2,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1666,
+          "argument_keys": [
+            "p_run_id",
+            "p_status",
+            "p_error"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1684,
+          "argument_keys": [
+            "p_run_id",
+            "p_status",
+            "p_error"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_assignable_roles",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/adminUserApi.ts",
+          "line": 113,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_complaint_evidence",
+      "signature": "p_complaint_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseComplaintService.ts",
+          "line": 783,
+          "argument_keys": [
+            "p_complaint_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_complaint_parties",
+      "signature": "p_complaint_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/complaintPartiesApi.ts",
+          "line": 39,
+          "argument_keys": [
+            "p_complaint_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_complaint_reporter_location",
+      "signature": "p_complaint_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseComplaintService.ts",
+          "line": 918,
+          "argument_keys": [
+            "p_complaint_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_dashboard_aggregates",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/dashboardApi.ts",
+          "line": 46,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_map_dataset",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/mapApi.ts",
+          "line": 29,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_my_authorization_context",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/auth/permissionService.ts",
+          "line": 68,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_news_intake_scan_sources",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 875,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_news_intake_taxonomy",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 868,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_permission_catalogue",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/roleApi.ts",
+          "line": 74,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_response_detail",
+      "signature": "p_response_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseResponseService.ts",
+          "line": 229,
+          "argument_keys": [
+            "p_response_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_responses",
+      "signature": "p_search text, p_status text, p_response_type text, p_start_date date, p_end_date date, p_page integer, p_limit integer, p_sort_by text, p_sort_direction text",
+      "trailing_defaults": 9,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseResponseService.ts",
+          "line": 164,
+          "argument_keys": [
+            "p_search",
+            "p_status",
+            "p_response_type",
+            "p_start_date",
+            "p_end_date",
+            "p_page",
+            "p_limit"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_role_detail",
+      "signature": "p_role_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/roleApi.ts",
+          "line": 101,
+          "argument_keys": [
+            "p_role_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_system_health",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 412,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_taxonomy",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/categoryApi.ts",
+          "line": 50,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_unread_notification_count",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/notificationApi.ts",
+          "line": 184,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_user",
+      "signature": "p_user_id uuid",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/adminUserApi.ts",
+          "line": 94,
+          "argument_keys": [
+            "p_user_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_user_filter_roles",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/adminUserApi.ts",
+          "line": 130,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_get_users",
+      "signature": "p_search text, p_role_id text, p_status text, p_limit integer, p_offset integer, p_sort_by text, p_sort_direction text",
+      "trailing_defaults": 7,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/adminUserApi.ts",
+          "line": 66,
+          "argument_keys": [
+            "p_search",
+            "p_role_id",
+            "p_status",
+            "p_limit",
+            "p_offset"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_list_audit_logs",
+      "signature": "p_limit integer, p_offset integer, p_search text, p_action text, p_target_type text, p_actor_id uuid, p_date_from timestamp with time zone, p_date_to timestamp with time zone, p_sort_by text, p_sort_direction text",
+      "trailing_defaults": 10,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/auditLogApi.ts",
+          "line": 40,
+          "argument_keys": [
+            "p_limit",
+            "p_offset",
+            "p_search",
+            "p_action",
+            "p_target_type",
+            "p_actor_id",
+            "p_date_from",
+            "p_date_to"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_list_notifications",
+      "signature": "p_limit integer, p_before_created_at timestamp with time zone, p_before_id uuid, p_unread_only boolean, p_category text",
+      "trailing_defaults": 5,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/notificationApi.ts",
+          "line": 52,
+          "argument_keys": [
+            "p_limit",
+            "p_before_created_at",
+            "p_before_id",
+            "p_unread_only",
+            "p_category"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "src/services/api/notificationApi.ts",
+          "line": 85,
+          "argument_keys": [
+            "p_limit",
+            "p_before_created_at",
+            "p_before_id",
+            "p_unread_only",
+            "p_category"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_list_roles",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/roleApi.ts",
+          "line": 49,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_mark_all_notifications_read",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/notificationApi.ts",
+          "line": 232,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "admin_mark_notification_read",
+      "signature": "p_notification_id uuid",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/notificationApi.ts",
+          "line": 208,
+          "argument_keys": [
+            "p_notification_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_preview_sourced_report_intake",
+      "signature": "p_payload jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1469,
+          "argument_keys": [
+            "p_payload"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_publish_banner",
+      "signature": "p_category_key text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/recoveryApi.ts",
+          "line": 157,
+          "argument_keys": [
+            "p_category_key"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_publish_complaint",
+      "signature": "p_complaint_id text, p_public_title_bn text, p_public_title_en text, p_public_summary_bn text, p_public_summary_en text",
+      "trailing_defaults": 4,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/recoveryApi.ts",
+          "line": 125,
+          "argument_keys": [
+            "p_complaint_id"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseComplaintService.ts",
+          "line": 1058,
+          "argument_keys": [
+            "p_complaint_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_publish_response",
+      "signature": "p_response_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseResponseService.ts",
+          "line": 269,
+          "argument_keys": [
+            "p_response_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_record_news_intake_item",
+      "signature": "p_run_id uuid, p_item jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 818,
+          "argument_keys": [
+            "p_run_id",
+            "p_item"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_reject_complaint",
+      "signature": "p_complaint_id text, p_reason_code text, p_note text",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseComplaintService.ts",
+          "line": 1137,
+          "argument_keys": [
+            "p_complaint_id",
+            "p_reason_code",
+            "p_note"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_reject_response",
+      "signature": "p_response_id text, p_note text",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseResponseService.ts",
+          "line": 299,
+          "argument_keys": [
+            "p_response_id",
+            "p_note"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_replace_role_permissions",
+      "signature": "p_role_id text, p_permission_ids text[]",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/roleApi.ts",
+          "line": 283,
+          "argument_keys": [
+            "p_role_id",
+            "p_permission_ids"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_resolve_news_intake_location",
+      "signature": "p_text text, p_language text",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1194,
+          "argument_keys": [
+            "p_text",
+            "p_language"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1225,
+          "argument_keys": [
+            "p_text",
+            "p_language"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_resubmit_response",
+      "signature": "p_response_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseResponseService.ts",
+          "line": 359,
+          "argument_keys": [
+            "p_response_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_save_banner_draft",
+      "signature": "p_category_key text, p_content jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/recoveryApi.ts",
+          "line": 147,
+          "argument_keys": [
+            "p_category_key",
+            "p_content"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_unpublish_complaint",
+      "signature": "p_complaint_id text, p_reason text",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseComplaintService.ts",
+          "line": 1095,
+          "argument_keys": [
+            "p_complaint_id",
+            "p_reason"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_unpublish_response",
+      "signature": "p_response_id text, p_reason text",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/supabaseResponseService.ts",
+          "line": 330,
+          "argument_keys": [
+            "p_response_id",
+            "p_reason"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_update_role",
+      "signature": "p_role_id text, p_name_en text, p_name_bn text, p_active boolean, p_permission_ids text[], p_description text, p_update_description boolean, p_update_name_bn boolean",
+      "trailing_defaults": 6,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/roleApi.ts",
+          "line": 249,
+          "argument_keys": [
+            "dynamic"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_update_taxonomy_item",
+      "signature": "p_item_type text, p_item_id text, p_name_en text, p_name_bn text, p_active boolean, p_sort_order integer",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/categoryApi.ts",
+          "line": 120,
+          "argument_keys": [
+            "p_item_type",
+            "p_item_id",
+            "p_name_en",
+            "p_name_bn",
+            "p_active",
+            "p_sort_order"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "admin_update_user",
+      "signature": "p_user_id uuid, p_display_name text, p_role_id text, p_active boolean",
+      "trailing_defaults": 3,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "src/services/api/adminUserApi.ts",
+          "line": 175,
+          "argument_keys": [
+            "p_user_id",
+            "p_display_name",
+            "p_role_id",
+            "p_active"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "can_manage_role_scope",
+      "signature": "p_role_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-create-user/index.ts",
+          "line": 176,
+          "argument_keys": [
+            "p_role_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "can_manage_user_target",
+      "signature": "p_target_user_id uuid",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-delete-user/index.ts",
+          "line": 165,
+          "argument_keys": [
+            "p_target_user_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "get_platform_sync_contract_version",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 430,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_harassment_classifications",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicReportService.ts",
+          "line": 65,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_home_feed",
+      "signature": "p_visitor_lat double precision, p_visitor_lng double precision, p_filter text, p_district text",
+      "trailing_defaults": 4,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicReportService.ts",
+          "line": 218,
+          "argument_keys": [
+            "p_visitor_lat",
+            "p_visitor_lng",
+            "p_filter",
+            "p_district"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_published_report",
+      "signature": "p_report_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicReportService.ts",
+          "line": 286,
+          "argument_keys": [
+            "p_report_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_published_report_evidence",
+      "signature": "p_report_ids text[]",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicEvidenceService.ts",
+          "line": 54,
+          "argument_keys": [
+            "p_report_ids"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_published_reports",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicReportService.ts",
+          "line": 107,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_published_responses",
+      "signature": "p_report_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicResponseService.ts",
+          "line": 35,
+          "argument_keys": [
+            "p_report_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "get_public_site_banners",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": true,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "src/services/publicBannerService.ts",
+          "line": 23,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "has_permission",
+      "signature": "p_permission_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-create-user/index.ts",
+          "line": 72,
+          "argument_keys": [
+            "p_permission_id"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-delete-user/index.ts",
+          "line": 90,
+          "argument_keys": [
+            "p_permission_id"
+          ]
+        },
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 405,
+          "argument_keys": [
+            "p_permission_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "is_active_admin",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": false
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 404,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "log_role_audit_event",
+      "signature": "p_action text, p_target_id text, p_details jsonb",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-delete-user/index.ts",
+          "line": 366,
+          "argument_keys": [
+            "p_action",
+            "p_target_id",
+            "p_details"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "process_trusted_news_intake_candidate",
+      "signature": "p_payload jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": true,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1559,
+          "argument_keys": [
+            "p_payload"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "record_public_visit_session",
+      "signature": "p_visitor_id text, p_session_id text, p_permission_status text, p_latitude numeric, p_longitude numeric, p_accuracy_meters numeric, p_browser_name text, p_browser_version text, p_os_name text, p_device_category text, p_platform text, p_language text, p_timezone text, p_screen_width integer, p_screen_height integer, p_user_agent text, p_ui_language text",
+      "trailing_defaults": 14,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-write-gateway/index.ts",
+          "line": 194,
+          "argument_keys": [
+            "dynamic"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "register_public_complaint_evidence",
+      "signature": "p_client_submission_id text, p_storage_path text, p_file_name text, p_file_size_bytes bigint, p_caption text",
+      "trailing_defaults": 1,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-evidence-upload/index.ts",
+          "line": 208,
+          "argument_keys": [
+            "p_client_submission_id",
+            "p_storage_path",
+            "p_file_name",
+            "p_file_size_bytes",
+            "p_caption"
+          ]
+        },
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-write-gateway/index.ts",
+          "line": 180,
+          "argument_keys": [
+            "p_client_submission_id",
+            "p_storage_path",
+            "p_file_name",
+            "p_file_size_bytes",
+            "p_caption"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "service_assert_public_write_rate",
+      "signature": "p_source_fingerprint text, p_action text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-evidence-upload/index.ts",
+          "line": 125,
+          "argument_keys": [
+            "p_source_fingerprint",
+            "p_action"
+          ]
+        },
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-write-gateway/index.ts",
+          "line": 157,
+          "argument_keys": [
+            "p_source_fingerprint",
+            "p_action"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "service_begin_scheduled_news_intake_run",
+      "signature": "p_scheduled_slot timestamp with time zone",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/news-intake-scan/index.ts",
+          "line": 1754,
+          "argument_keys": [
+            "p_scheduled_slot"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "service_get_database_health",
+      "signature": "",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 374,
+          "argument_keys": null
+        }
+      ]
+    },
+    {
+      "rpc": "service_record_system_health_snapshot",
+      "signature": "p_overall_status text, p_public_site jsonb, p_admin_site jsonb, p_prometheus jsonb, p_infrastructure jsonb, p_collector_version text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 491,
+          "argument_keys": [
+            "p_overall_status",
+            "p_public_site",
+            "p_admin_site",
+            "p_prometheus",
+            "p_infrastructure",
+            "p_collector_version"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "service_verify_system_health_token",
+      "signature": "p_token text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Admin",
+          "path": "supabase/functions/admin-system-health/index.ts",
+          "line": 364,
+          "argument_keys": [
+            "p_token"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "submit_public_complaint_v2",
+      "signature": "p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [],
+      "dispatcher": "Public Edge allowedSubmissionRpcs (constant allowlist)"
+    },
+    {
+      "rpc": "submit_public_complaint_v3",
+      "signature": "p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [],
+      "dispatcher": "Public Edge allowedSubmissionRpcs (constant allowlist)"
+    },
+    {
+      "rpc": "submit_public_configured_complaint",
+      "signature": "p_payload jsonb, p_client_submission_id text, p_reporter_context jsonb",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [],
+      "dispatcher": "Public Edge allowedSubmissionRpcs (constant allowlist)"
+    },
+    {
+      "rpc": "submit_public_response_v2",
+      "signature": "p_report_id text, p_response_type text, p_payload jsonb, p_visitor_id text, p_session_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-write-gateway/index.ts",
+          "line": 215,
+          "argument_keys": [
+            "p_report_id",
+            "p_response_type",
+            "p_payload",
+            "p_visitor_id",
+            "p_session_id"
+          ]
+        }
+      ]
+    },
+    {
+      "rpc": "track_public_report_engagement",
+      "signature": "p_report_id text, p_event_type text, p_visitor_id text, p_session_id text",
+      "trailing_defaults": 0,
+      "grants": {
+        "anon": false,
+        "authenticated": false,
+        "service_role": true
+      },
+      "call_sites": [
+        {
+          "repository": "Public",
+          "path": "supabase/functions/public-write-gateway/index.ts",
+          "line": 202,
+          "argument_keys": [
+            "p_report_id",
+            "p_event_type",
+            "p_visitor_id",
+            "p_session_id"
+          ]
+        }
+      ]
+    }
+  ]
+}

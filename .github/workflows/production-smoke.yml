@@ -5,6 +5,11 @@ on:
     workflows: ["Deploy to GitHub Pages"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact deployed 40-character main commit SHA'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,34 +20,77 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SITE_URL: https://shihab-tech04.github.io/Sobaike-Janao-Admin/
-      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://ahiaymyqfmyyrjkwgvhi.supabase.co' }}
-      SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_3wqaYyxPJ6spRNS0jNOi4w_69Jqc3-b' }}
+      SITE_URL: https://admin.shobaikejanao.com
+      SUPABASE_URL: https://eztqgqgpluoqwmprgeas.supabase.co
+      SUPABASE_KEY: sb_publishable_M8nmD6rGWp42V9kIxHJU3A_-bx57_aY
 
     steps:
-      - name: Verify live Admin site
+      - name: Verify canonical HTTPS domain serves the exact released bundle
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.expected_sha }}
         run: |
           set -euo pipefail
-          ok=0
-          for attempt in {1..12}; do
-            code=$(curl -L -sS -o /tmp/admin-index.html -w "%{http_code}" "$SITE_URL" || true)
-            if [ "$code" = "200" ]; then
-              ok=1
-              break
-            fi
-            echo "Attempt $attempt returned HTTP $code; retrying..."
-            sleep 10
-          done
-          test "$ok" = "1"
-          python - <<'PY'
+          if [[ ! "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: an exact 40-character release commit SHA is required"
+            exit 1
+          fi
+          curl -fsSL --retry 12 --retry-delay 10 --retry-all-errors \
+            --output "$RUNNER_TEMP/canonical-index.html" "$SITE_URL/"
+          curl -fsSL --retry 12 --retry-delay 10 --retry-all-errors \
+            --output "$RUNNER_TEMP/release-manifest.json" "$SITE_URL/release-manifest.json"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from html.parser import HTMLParser
           from pathlib import Path
-          html = Path('/tmp/admin-index.html').read_text(errors='replace')
-          if 'id="root"' not in html and "id='root'" not in html:
-              raise SystemExit('ERROR: production HTML is missing the React root element')
-          if '/src/main.tsx' in html:
-              raise SystemExit('ERROR: production page references source entry instead of bundled assets')
-          print('Admin site smoke check passed')
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import Request, urlopen
+
+          html_bytes = (Path(os.environ['RUNNER_TEMP']) / 'canonical-index.html').read_bytes()
+          manifest = json.loads((Path(os.environ['RUNNER_TEMP']) / 'release-manifest.json').read_text())
+          if manifest.get('commit_sha') != os.environ['EXPECTED_SHA']:
+              raise SystemExit('ERROR: canonical deployment commit does not match expected release SHA')
+          if manifest.get('repository') != os.environ['GITHUB_REPOSITORY']:
+              raise SystemExit('ERROR: deployed artifact belongs to a different repository')
+          if manifest.get('index_sha256') != hashlib.sha256(html_bytes).hexdigest():
+              raise SystemExit('ERROR: canonical index differs from release artifact hash')
+          html = html_bytes.decode('utf-8', errors='replace')
+          if ('id="root"' not in html and "id='root'" not in html) or '/src/main.tsx' in html:
+              raise SystemExit('ERROR: canonical site missing built React application')
+
+          class Assets(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.assets = []
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag == 'script' and a.get('src'):
+                      self.assets.append((a['src'], 'javascript'))
+                  if tag == 'link' and a.get('rel') == 'stylesheet' and a.get('href'):
+                      self.assets.append((a['href'], 'css'))
+
+          parser = Assets()
+          parser.feed(html)
+          if not any(kind == 'javascript' for _, kind in parser.assets):
+              raise SystemExit('ERROR: canonical HTML has no JS bundle')
+          origin = os.environ['SITE_URL'].rstrip('/') + '/'
+          host = urlparse(origin).hostname
+          for path, kind in parser.assets:
+              target = urljoin(origin, path)
+              uri = urlparse(target)
+              if uri.scheme != 'https' or uri.hostname != host:
+                  raise SystemExit(f'ERROR: unexpected asset origin: {path}')
+              with urlopen(Request(target, headers={'User-Agent': 'SobaikeReleaseSmoke/1.0'}), timeout=20) as response:
+                  if response.status != 200:
+                      raise SystemExit(f'ERROR: asset HTTP {response.status}: {path}')
+                  content_type = response.headers.get('content-type', '').lower()
+                  if kind == 'javascript' and 'javascript' not in content_type:
+                      raise SystemExit(f'ERROR: JS request served wrong MIME: {path} ({content_type})')
+                  if kind == 'css' and 'css' not in content_type:
+                      raise SystemExit(f'ERROR: CSS request served wrong MIME: {path} ({content_type})')
+          print('Verified canonical Admin bundle:', manifest['commit_sha'], 'HTML SHA-256:', manifest['index_sha256'])
           PY
 
       - name: Verify private Admin RPC rejects anonymous access

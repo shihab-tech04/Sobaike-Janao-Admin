@@ -1,0 +1,1300 @@
+{
+  "captured_at_utc": "2026-10-18",
+  "project_id": "ahiaymyqfmyyrjkwgvhi",
+  "provenance": "Read-only Supabase migration list and public GitHub recovery repository file paths. Names are metadata, not replayable SQL.",
+  "totals": {
+    "hosted_versions": 208,
+    "admin_sql_files": 50,
+    "public_sql_files": 3,
+    "repository_unique_versions": 53,
+    "matched_hosted_versions": 19,
+    "missing_hosted_source_versions": 189,
+    "repository_only_versions": 34
+  },
+  "repository_only_versions": [
+    "20260902000000",
+    "20260902000001",
+    "20260902000002",
+    "20260902000003",
+    "20260902000004",
+    "20260902000005",
+    "20260902000006",
+    "20260902000007",
+    "20260902000008",
+    "20260903000001",
+    "20260903000002",
+    "20260903000003",
+    "20260903000004",
+    "20260903000005",
+    "20260903000006",
+    "20260904000001",
+    "20260904000002",
+    "20260904000003",
+    "20260904000004",
+    "20260904000005",
+    "20260904000006",
+    "20260904000007",
+    "20260904000008",
+    "20260904000009",
+    "20260904000010",
+    "20260906000000",
+    "20260907000000",
+    "20260907000001",
+    "20260907000002",
+    "20260907000003",
+    "20260915163600",
+    "20260915164500",
+    "20260915165000",
+    "20260916004500"
+  ],
+  "hosted_migrations": [
+    {
+      "version": "20260914155657",
+      "name": "phase8_shadow_location_privacy_final",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915044537",
+      "name": "phase13_admin_edit_complaint_live",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915050135",
+      "name": "phase14_16_final_hardening",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915051631",
+      "name": "phase7_admin_response_private_contact",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915090612",
+      "name": "phase8_closeout_location_visibility_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915135838",
+      "name": "harassment_classification_dimensions",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915160005",
+      "name": "admin_harassment_map_alignment",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915163913",
+      "name": "public_security_evidence_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915164329",
+      "name": "public_security_surface_limits",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915170127",
+      "name": "public_security_policy_cleanup",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260915184553",
+      "name": "admin_complaint_parties_read_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916043525",
+      "name": "public_utility_end_time_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916043727",
+      "name": "public_utility_start_time_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916044111",
+      "name": "public_utility_time_scope_hardening",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916051757",
+      "name": "response_moderation_metadata_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916052454",
+      "name": "response_detail_remove_stale_is_official",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916053345",
+      "name": "admin_taxonomy_management_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916055352",
+      "name": "public_active_taxonomy_submission_guard",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916055454",
+      "name": "public_publication_preferences_enforcement",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916060114",
+      "name": "public_identity_detail_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916061157",
+      "name": "public_bilingual_report_output_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916061421",
+      "name": "public_taxonomy_labels_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916063138",
+      "name": "tighten_sensitive_admin_table_read_permissions",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916063545",
+      "name": "tighten_complaint_updates_read_permission",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916064241",
+      "name": "revoke_legacy_unpublish_complaint_overload",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916070212",
+      "name": "public_harassment_classification_output_contract",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916080259",
+      "name": "advisor_explicit_denies_and_function_defaults",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916080711",
+      "name": "revoke_internal_helper_direct_execution",
+      "admin_source_file": true,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916133301",
+      "name": "phase1_expand_complaint_taxonomy",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916145930",
+      "name": "bribery_reporting_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260916151907",
+      "name": "restore_legacy_submit_rpc_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917034754",
+      "name": "publication_presentation_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917050541",
+      "name": "publication_publish_rpc_permissions",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917051022",
+      "name": "mob_justice_reporting_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917053520",
+      "name": "admin_publication_draft_editor",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917063453",
+      "name": "admin_publication_draft_editor",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917081050",
+      "name": "public_engagement_counts_phase1",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917085735",
+      "name": "complete_public_engagement_counts_phase1",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917100345",
+      "name": "reorder_categories_and_rename_rickshaw",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917103829",
+      "name": "public_engagement_read_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917112639",
+      "name": "phase1_public_engagement_ranking",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917155356",
+      "name": "public_feed_update_signal",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917155919",
+      "name": "public_category_popularity_ranking",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917161815",
+      "name": "harden_public_category_popularity",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917173015",
+      "name": "citizen_report_title_100_character_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917184806",
+      "name": "public_home_feed_publication_parity",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917190902",
+      "name": "align_admin_bilingual_title_length_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917193928",
+      "name": "banner_management_cms",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260917194944",
+      "name": "banner_seed_public_asset_urls",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918033109",
+      "name": "dynamic_taxonomy_form_foundation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918033732",
+      "name": "draft_taxonomy_creation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918041043",
+      "name": "taxonomy_form_builder_control_plane",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918041055",
+      "name": "schema_driven_public_submission",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918044314",
+      "name": "taxonomy_schema_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918044836",
+      "name": "atomic_taxonomy_updates",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918045001",
+      "name": "configured_field_read_labels",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918061006",
+      "name": "notification_center_completion",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918061325",
+      "name": "notification_center_backfill_missing_submissions",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918062209",
+      "name": "category_popularity_72h_snapshot",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918062904",
+      "name": "source_verification_v2",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918063643",
+      "name": "source_gate_insert_update",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918063748",
+      "name": "source_verification_v2_security_indexes",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918064004",
+      "name": "source_verification_v2_published_integrity",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918065510",
+      "name": "notification_center_consistency_fixes",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918070027",
+      "name": "reset_category_popularity_baseline",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918072345",
+      "name": "notification_center_final_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918074929",
+      "name": "sexual_harassment_form_v2",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918075127",
+      "name": "notification_personal_route_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918084849",
+      "name": "refine_public_banner_copy",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918085446",
+      "name": "sync_harassment_v2_validation_options",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918093834",
+      "name": "sync_harassment_schema_draft_options",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918094311",
+      "name": "blackmail_context_sync",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918104603",
+      "name": "bribery_public_contract_sync",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918110114",
+      "name": "complete_dynamic_form_validation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918110141",
+      "name": "extortion_timeline_public_contract_sync",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918110430",
+      "name": "live_category_counts_frozen_order",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918113332",
+      "name": "public_report_updated_at_seo_metadata_v2",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918154536",
+      "name": "sourced_report_duplicate_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918154616",
+      "name": "sourced_report_duplicate_guard_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918161717",
+      "name": "news_intake_foundation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918161752",
+      "name": "news_intake_actions",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918162008",
+      "name": "news_intake_taxonomy_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918163153",
+      "name": "news_intake_registry_index",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918163429",
+      "name": "news_intake_canonical_publisher",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918172747",
+      "name": "news_intake_automation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918173239",
+      "name": "news_intake_source_compatibility",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918173920",
+      "name": "news_intake_automation_fk_indexes",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918184016",
+      "name": "news_intake_automation_reliability_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918184410",
+      "name": "news_intake_collision_error_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918184743",
+      "name": "news_intake_explicit_deny_policies",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918185342",
+      "name": "news_intake_schema_requirement_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918185535",
+      "name": "news_intake_samakal_manual_only",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260918191945",
+      "name": "news_intake_36h_scheduler",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919053554",
+      "name": "banner_description_length_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919072614",
+      "name": "canonical_bangladesh_location_taxonomy",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919072717",
+      "name": "unify_location_contract_and_sourced_validation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919072751",
+      "name": "public_bilingual_location_payload_and_filter",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073124",
+      "name": "fix_public_published_reports_json_build_limit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073144",
+      "name": "block_invalid_sourced_location_publish",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073421",
+      "name": "include_full_location_in_sourced_schema_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073522",
+      "name": "canonical_location_aliases_for_historical_data",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073554",
+      "name": "canonical_location_aliases_for_bangla_sadar_variants",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073603",
+      "name": "repair_ambiguous_historical_sourced_locations",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073650",
+      "name": "repair_two_automated_district_only_reports_from_verified_sources",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073658",
+      "name": "normalize_all_report_admin_locations_to_canonical_names_v2",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073753",
+      "name": "optimize_public_location_localization_helpers",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073809",
+      "name": "optimize_public_home_feed_location_resolution",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919073816",
+      "name": "optimize_public_published_reports_location_resolution",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074020",
+      "name": "optimize_public_published_report_location_resolution",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074049",
+      "name": "split_public_report_json_payload_under_postgres_argument_limit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074156",
+      "name": "backfill_sourced_report_location_scope_and_source_language",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074424",
+      "name": "harden_news_intake_location_resolution_order_and_boundaries",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074513",
+      "name": "detect_multi_location_news_before_feed_ready_creation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074623",
+      "name": "support_bangla_inflected_locations_and_safe_multi_location_detection",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919074704",
+      "name": "fix_bangla_location_suffix_matching_without_substring_collisions",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919082400",
+      "name": "location_contract_final_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919082649",
+      "name": "location_admin_rpc_invoker_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919082837",
+      "name": "news_intake_publish_grounding_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919083754",
+      "name": "news_intake_grounding_guard_align_duplicate_gate",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919084856",
+      "name": "scale_public_home_feed_page",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919101933",
+      "name": "finish_home_feed_scale_guards",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919101959",
+      "name": "preserve_home_feed_total_count_until_client_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919142507",
+      "name": "end_to_end_sync_contract_and_rls_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919150134",
+      "name": "explicit_rpc_owned_table_denies",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919150245",
+      "name": "sync_contract_reconciliation_and_private_rls",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919150354",
+      "name": "explicit_public_event_table_denies",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919150808",
+      "name": "public_abuse_security_hardening",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919150900",
+      "name": "explicit_security_deny_policies",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919151454",
+      "name": "admin_sensitive_actions_require_aal2",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919151751",
+      "name": "public_edge_write_rate_limit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919152008",
+      "name": "public_edge_session_rate_limit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919152234",
+      "name": "public_write_gateway_enforcement",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919152424",
+      "name": "public_edge_rate_limits_shared_network_safe",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919153609",
+      "name": "reporting_form_taxonomy_lifecycle_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919154219",
+      "name": "restore_reporting_form_prepublication_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919155020",
+      "name": "close_legacy_engagement_and_persist_ip_location_limit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919155106",
+      "name": "reinstall_pg_net_and_restrict_client_privileges",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919155143",
+      "name": "restrict_pg_net_client_privileges_after_reinstall",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919161859",
+      "name": "close_legacy_engagement_and_network_surface",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919162454",
+      "name": "reporting_form_taxonomy_lifecycle_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919162702",
+      "name": "restore_prepublication_after_lifecycle_audit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919184248",
+      "name": "quarantine_misclassified_automated_news_report",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919192048",
+      "name": "introduce_child_abduction_murder_category",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919193733",
+      "name": "simplify_child_abduction_murder_form_v2",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919194123",
+      "name": "minimize_child_safety_location_ui",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260919200724",
+      "name": "restore_child_safety_standard_report_layout",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920020047",
+      "name": "harden_child_safety_submission_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920021158",
+      "name": "canonical_publication_timestamp",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920021207",
+      "name": "news_intake_sensitive_content_review_gate",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920021330",
+      "name": "canonical_publication_update_state_alignment",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920034926",
+      "name": "restore_child_safety_standard_location_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920065202",
+      "name": "news_intake_matched_review_workspace",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920093010",
+      "name": "trusted_news_intake_auto_publish",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920093258",
+      "name": "trusted_news_source_omission_columns",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920122450",
+      "name": "news_intake_final_production_cleanup",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920131136",
+      "name": "news_intake_100_percent_closeout",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920131354",
+      "name": "news_intake_ledger_parity_closeout",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920132122",
+      "name": "news_intake_scheduler_cron_parity",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920142434",
+      "name": "news_intake_source_quality_gate",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920143209",
+      "name": "news_intake_factcheck_location_quality",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920143848",
+      "name": "news_intake_legacy_quality_cleanup",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920170039",
+      "name": "subcategory_topic_seo_slugs",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920175318",
+      "name": "news_intake_one_click_zero_issue_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920184104",
+      "name": "news_intake_subcategory_builder_contract",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260920192802",
+      "name": "news_intake_location_semantic_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921032416",
+      "name": "news_intake_followup_historical_location_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921033535",
+      "name": "news_intake_relative_date_narrative_location_guard",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921091313",
+      "name": "news_intake_final_closeout",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921095920",
+      "name": "complete_language_feature_parity",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921105818",
+      "name": "preserve_category_popularity_empty_snapshot_baseline",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921120420",
+      "name": "remove_orphan_taxonomy_test_draft",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921161726",
+      "name": "admin_audit_log_dynamic_filter_options",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921162102",
+      "name": "enforce_transient_browse_location_privacy",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921164911",
+      "name": "add_evidence_gateway_rate_limit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921165245",
+      "name": "allow_evidence_write_rate_event",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921165314",
+      "name": "drop_obsolete_browse_location_index",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921170002",
+      "name": "close_direct_public_evidence_registration",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921180820",
+      "name": "fix_public_configured_field_read_sync",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260921183926",
+      "name": "drop_unused_admin_rpc_surface",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922020910",
+      "name": "add_updated_at_to_public_home_feed_page",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922021059",
+      "name": "drop_unused_public_edge_rate_limit_rpc",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922062135",
+      "name": "add_ride_sharing_safety",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922071519",
+      "name": "restore_ride_sharing_core_intake",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922075248",
+      "name": "refine_ride_sharing_related_party_fields",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922100639",
+      "name": "public_security_least_privilege_closeout",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922101337",
+      "name": "public_evidence_storage_helper_isolation",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922110131",
+      "name": "close_remaining_auth_session_and_rate_races",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260922110302",
+      "name": "require_aal2_for_sensitive_private_reads",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260923105923",
+      "name": "district_boundary_pcode_crosswalk",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260923130248",
+      "name": "news_intake_stale_run_recovery",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260923144457",
+      "name": "public_published_reports_sanitized_upazila_labels",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260925012634",
+      "name": "privacy_minimize_reporter_device_context",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260925050040",
+      "name": "separate_category_popularity_snapshot_refresh",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20260925145914",
+      "name": "harden_admin_authorization_helper_surface",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006055918",
+      "name": "restore_delegation_helper_execute_grants",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006065533",
+      "name": "public_post_origin_provenance",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006090742",
+      "name": "close_taxonomy_lifecycle_and_embed_post_origin",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006091859",
+      "name": "restore_prepublication_after_final_sync_audit",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006114031",
+      "name": "hide_protected_super_admin_from_other_admins",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006122748",
+      "name": "admin_global_table_sorting",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006122800",
+      "name": "preserve_protected_super_admin_visibility",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006173222",
+      "name": "system_health_observability",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006173628",
+      "name": "fix_system_health_snapshot_persistence",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006181317",
+      "name": "complete_system_health_dependency_graph",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006181758",
+      "name": "fix_system_health_transition_notifications",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006181848",
+      "name": "trace_system_health_notification_delivery",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006182320",
+      "name": "dedicated_system_health_permission",
+      "admin_source_file": false,
+      "public_source_file": false
+    },
+    {
+      "version": "20261006183219",
+      "name": "reconcile_system_health_rbac_observability",
+      "admin_source_file": false,
+      "public_source_file": false
+    }
+  ]
+}

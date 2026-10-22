@@ -86,7 +86,26 @@ export const ResponseTable: React.FC<ResponseTableProps> = ({
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+    <>
+    <div className="space-y-3 md:hidden">
+      {responses.map((item) => (
+        <article key={item.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {getTypeBadge(item.responseType)}
+            {getStatusBadge(item.status)}
+          </div>
+          <p className="mt-3 line-clamp-3 break-words text-sm text-slate-800 dark:text-slate-200">{item.content || (isBn ? 'কোনো বক্তব্য নেই' : 'No content')}</p>
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <span>{isBn ? 'রিপোর্ট' : 'Report'}: {item.complaintId} · {formatDate(item.createdAt)}</span>
+            <Button type="button" variant="secondary" size="sm" disabled={isLoading}
+              onClick={() => onViewDetails(item)} aria-label={`${isBn ? 'প্রতিক্রিয়া দেখুন' : 'View response'} ${item.id}`}>
+              <Eye className="mr-1 h-4 w-4" />{isBn ? 'দেখুন' : 'View'}
+            </Button>
+          </div>
+        </article>
+      ))}
+    </div>
+    <div className="hidden md:block w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
       <div className="w-full overflow-x-auto">
         <table className="w-full text-left text-sm border-collapse min-w-[760px]">
           <thead className="bg-slate-50 dark:bg-slate-800/80 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
@@ -173,6 +192,7 @@ export const ResponseTable: React.FC<ResponseTableProps> = ({
         </table>
       </div>
     </div>
+    </>
   );
 };
 

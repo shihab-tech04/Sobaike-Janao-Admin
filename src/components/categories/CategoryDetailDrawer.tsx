@@ -8,11 +8,13 @@ import {
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Drawer } from '@/components/ui/Drawer';
+import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Divider } from '@/components/ui/Divider';
 import { categoryApi } from '@/services/api/categoryApi';
 import { CategoryEditModal } from './CategoryEditModal';
+import { CategoryConfigurationModal } from './CategoryConfigurationModal';
 import {
   Folder,
   Tag,
@@ -22,6 +24,10 @@ import {
   ArrowUpDown,
   Layers,
   Pencil,
+  MoveRight,
+  Send,
+  ListChecks,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export type DetailDrawerTarget =
@@ -32,14 +38,18 @@ export interface CategoryDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   target: DetailDrawerTarget | null;
+  allSegments?: TaxonomySegment[];
   onUpdated?: () => void;
+  onOpenForm?: (subcategory: TaxonomySubcategory, parentActive: boolean) => void;
 }
 
 export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   isOpen,
   onClose,
   target,
+  allSegments = [],
   onUpdated,
+  onOpenForm,
 }) => {
   const { language } = useLanguage();
   const { hasPermission } = useAuth();
@@ -48,6 +58,10 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isMoveOpen, setIsMoveOpen] = useState(false);
+  const [targetSegmentId, setTargetSegmentId] = useState('');
+  const [publishConfirm, setPublishConfirm] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   if (!target) return null;
 
@@ -79,6 +93,39 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
     }
   };
 
+  const handleMove = async () => {
+    if (target.type !== 'subcategory' || !targetSegmentId || targetSegmentId === target.data.segmentId) return;
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await categoryApi.moveSubcategory({
+        subcategoryId: target.data.id,
+        targetSegmentId,
+        order: target.data.order,
+      });
+      setIsMoveOpen(false);
+      onClose();
+      onUpdated?.();
+    } catch (error: any) {
+      setSaveError(error?.message || 'Failed to move subcategory.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await categoryApi.publishTaxonomyItem(target.type, target.data.id);
+      setPublishConfirm(false);
+      onClose();
+      onUpdated?.();
+    } catch (error: any) {
+      setSaveError(error?.message || 'Could not publish taxonomy item.');
+    } finally { setIsSaving(false); }
+  };
+
   return (
     <>
     <Drawer
@@ -105,15 +152,35 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       size="md"
       footer={
         canManage ? (
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleOpenEdit}
-            leftIcon={<Pencil className="w-3.5 h-3.5" />}
-            className="w-full sm:w-auto min-h-[44px]"
-          >
-            {isBn ? 'সম্পাদনা করুন' : 'Edit'}
-          </Button>
+          <div className="flex gap-2 justify-end flex-wrap">
+            <Button id="taxonomy-config-open" type="button" variant="secondary" onClick={() => setIsConfigOpen(true)}
+              leftIcon={<SlidersHorizontal className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'কনফিগারেশন' : 'Configure'}
+            </Button>
+            {target.type === 'subcategory' && onOpenForm && <Button id="taxonomy-form-open" type="button" variant="secondary"
+              onClick={() => onOpenForm(target.data, target.parentSegment?.status === 'active')}
+              leftIcon={<ListChecks className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'ফর্ম বিল্ডার' : 'Form Builder'}
+            </Button>}
+            {target.data.status !== 'active' && <Button id="taxonomy-publish-open" type="button" variant="secondary"
+              disabled={isSaving} onClick={() => { setSaveError(null); setPublishConfirm(true); }}
+              leftIcon={<Send className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'পর্যালোচনা ও প্রকাশ' : 'Review & Publish'}
+            </Button>}
+            {target.type === 'subcategory' && allSegments.some((s) => s.id !== target.data.segmentId) && (
+              <Button type="button" variant="secondary" onClick={() => {
+                setSaveError(null);
+                setTargetSegmentId('');
+                setIsMoveOpen(true);
+              }} leftIcon={<MoveRight className="w-3.5 h-3.5" />} className="min-h-[44px]">
+                {isBn ? 'অন্য বিভাগে সরান' : 'Move to Category'}
+              </Button>
+            )}
+            <Button type="button" variant="primary" onClick={handleOpenEdit}
+              leftIcon={<Pencil className="w-3.5 h-3.5" />} className="min-h-[44px]">
+              {isBn ? 'সম্পাদনা করুন' : 'Edit'}
+            </Button>
+          </div>
         ) : undefined
       }
     >
@@ -278,6 +345,7 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
         <Divider />
 
         {/* Read-Only Notice */}
+        {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{saveError}</p>}
         <div className="text-[11px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl">
           {canManage
             ? isBn
@@ -299,6 +367,48 @@ export const CategoryDetailDrawer: React.FC<CategoryDetailDrawerProps> = ({
       onClose={handleCloseEdit}
       onSave={handleSave}
     />
+    <CategoryConfigurationModal itemType={target.type} itemId={isConfigOpen ? target.data.id : null}
+      onClose={() => setIsConfigOpen(false)} onSaved={() => onUpdated?.()} />
+    <Modal isOpen={publishConfirm} onClose={isSaving ? () => {} : () => setPublishConfirm(false)}
+      title={isBn ? 'প্রকাশ নিশ্চিত করুন' : 'Confirm taxonomy publication'} size="md"
+      footer={<div className="flex gap-2 justify-end w-full">
+        <Button variant="secondary" disabled={isSaving} onClick={() => setPublishConfirm(false)}>{isBn ? 'বাতিল' : 'Cancel'}</Button>
+        <Button id="taxonomy-publish-confirm" variant="primary" isLoading={isSaving} disabled={isSaving} onClick={handlePublish}>{isBn ? 'প্রকাশ করুন' : 'Publish'}</Button>
+      </div>}>
+      <p className="text-sm">{isBn
+        ? 'প্রকাশের আগে সার্ভার ফর্ম, ক্যাটাগরি এবং ব্যানারের প্রস্তুতি যাচাই করবে। অসম্পূর্ণ থাকলে প্রকাশ করা হবে না।'
+        : 'The server checks the required form, parent category, and banner readiness. Incomplete drafts cannot become public.'}</p>
+      {saveError && <p role="alert" className="text-sm text-red-700 mt-2">{saveError}</p>}
+    </Modal>
+    <Modal isOpen={isMoveOpen && target.type === 'subcategory'}
+      onClose={isSaving ? () => {} : () => setIsMoveOpen(false)}
+      closeOnBackdrop={!isSaving}
+      title={isBn ? 'সাব-ক্যাটাগরি অন্য বিভাগে সরান' : 'Move Subcategory'} size="md"
+      footer={
+        <div className="flex gap-2 justify-end w-full">
+          <Button type="button" variant="secondary" disabled={isSaving} onClick={() => setIsMoveOpen(false)}>{isBn ? 'বাতিল' : 'Cancel'}</Button>
+          <Button id="taxonomy-move-confirm" type="button" variant="primary" isLoading={isSaving}
+            disabled={isSaving || !targetSegmentId || (target.type === 'subcategory' && targetSegmentId === target.data.segmentId)} onClick={handleMove}>
+            {isBn ? 'নিষ্ক্রিয় করে সরান' : 'Deactivate and Move'}
+          </Button>
+        </div>
+      }>
+      <div className="space-y-4">
+        <p className="text-sm text-amber-700 dark:text-amber-300">
+          {isBn
+            ? 'সরালে আইটেমটি নিষ্ক্রিয় হবে। আগের রিপোর্ট সংরক্ষিত থাকবে; নতুন বিভাগে পুনরায় প্রকাশ ও সক্রিয় করতে হবে।'
+            : 'Moving deactivates this subcategory. Historical reports remain intact; explicit review, publication, and reactivation are required.'}
+        </p>
+        <label htmlFor="taxonomy-move-target" className="block text-sm font-semibold">{isBn ? 'নতুন বিভাগ' : 'Target category'}</label>
+        <select id="taxonomy-move-target" value={targetSegmentId} onChange={(event) => setTargetSegmentId(event.target.value)} disabled={isSaving}
+          className="w-full min-h-[44px] rounded-lg border border-slate-300 bg-white p-2 dark:bg-slate-900 dark:border-slate-700">
+          <option value="">{isBn ? 'বিভাগ নির্বাচন করুন' : 'Select category'}</option>
+          {allSegments.filter((seg) => target.type === 'subcategory' && seg.id !== target.data.segmentId)
+            .map((seg) => <option key={seg.id} value={seg.id}>{isBn ? seg.nameBn : seg.nameEn}</option>)}
+        </select>
+        {saveError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{saveError}</p>}
+      </div>
+    </Modal>
     </>
   );
 };

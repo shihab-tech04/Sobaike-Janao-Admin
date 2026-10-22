@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { AccessDenied } from '@/components/common';
@@ -71,13 +71,12 @@ export const ActivityLogPage: React.FC = () => {
   const { t, language } = useLanguage();
   const { hasPermission } = useAuth();
 
-  // Permission Guard Check (Fails closed)
-  if (!hasPermission('audit.view')) {
-    return <AccessDenied requiredPermission="audit.view" />;
-  }
+  // Compute access before hooks but never return until every hook has run.
+  const canViewAudit = hasPermission('audit.view');
 
   // Data & State
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
+  const requestVersionRef = useRef(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,6 +122,8 @@ export const ActivityLogPage: React.FC = () => {
    * Load audit logs via API service
    */
   const loadLogs = useCallback(async () => {
+    if (!canViewAudit) return;
+    const requestVersion = ++requestVersionRef.current;
     setLoading(true);
     setError(null);
 
@@ -138,6 +139,7 @@ export const ActivityLogPage: React.FC = () => {
         offset,
       });
 
+      if (requestVersion !== requestVersionRef.current) return;
       setLogs(response.logs);
       setTotalCount(response.total_count);
 
@@ -147,17 +149,29 @@ export const ActivityLogPage: React.FC = () => {
         setPage(maxPage);
       }
     } catch (err: unknown) {
+      if (requestVersion !== requestVersionRef.current) return;
       console.error('Failed to load activity logs:', err);
       const msg = err instanceof Error ? err.message : 'Failed to load activity logs';
       setError(msg);
     } finally {
-      setLoading(false);
+      if (requestVersion === requestVersionRef.current) setLoading(false);
     }
-  }, [page, pageSize, search, action, targetType, dateFrom, dateTo]);
+  }, [canViewAudit, page, pageSize, search, action, targetType, dateFrom, dateTo]);
 
   useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
+    if (!canViewAudit) {
+      // Invalidate in-flight reads and forget previously visible private records.
+      requestVersionRef.current += 1;
+      setLogs([]);
+      setTotalCount(0);
+      setSelectedLog(null);
+      setIsDrawerOpen(false);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    void loadLogs();
+  }, [canViewAudit, loadLogs]);
 
   // Open drawer
   const handleViewDetails = (log: AuditLogItem) => {
@@ -168,6 +182,10 @@ export const ActivityLogPage: React.FC = () => {
   const totalPages = Math.ceil(totalCount / pageSize);
   const startItem = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, totalCount);
+
+  if (!canViewAudit) {
+    return <AccessDenied requiredPermission="audit.view" />;
+  }
 
   return (
     <div className="space-y-6 pb-12" id="admin-activity-log-page">

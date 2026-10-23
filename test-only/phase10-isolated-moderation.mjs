@@ -68,6 +68,13 @@ sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
 ('responses.publish', 'responses', 'publish', 'Synthetic Response Publish', 'প্রতিক্রিয়া প্রকাশ'),
 ('responses.reject', 'responses', 'reject', 'Synthetic Response Reject', 'প্রতিক্রিয়া বাতিল'),
 ('responses.unpublish', 'responses', 'unpublish', 'Synthetic Response Unpublish', 'প্রতিক্রিয়া অপ্রকাশ')`);
+// These high-impact permissions exist for negative role-boundary assertions.
+// Phase09 may have seeded two of them already in this disposable stack.
+sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
+  ('roles.manage', 'roles', 'manage', 'Synthetic Role Management', 'পরীক্ষামূলক ভূমিকা'),
+  ('admin_users.manage', 'admin_users', 'manage', 'Synthetic User Management', 'পরীক্ষামূলক ব্যবহারকারী'),
+  ('banners.manage', 'banners', 'manage', 'Synthetic Banner Management', 'পরীক্ষামূলক ব্যানার')
+  ON CONFLICT (id) DO NOTHING`);
 sql(`INSERT INTO public.admin_users(user_id, active, is_super_admin, display_name)
   VALUES ('${userId}', true, false, 'Synthetic Delegated Moderator')`);
 // Preserve the one-protected-Super-Admin invariant from Phase09. Exercise a
@@ -145,6 +152,37 @@ const verified = await operator.auth.mfa.challengeAndVerify({ factorId: enroll.d
 assert.ifError(verified.error);
 const aal = await operator.auth.mfa.getAuthenticatorAssuranceLevel();
 assert.equal(aal.data?.currentLevel, 'aal2');
+
+// AAL2 alone must not elevate a delegated moderator into unrelated Admin roles.
+const scopedContext = await operator.rpc('admin_get_my_authorization_context');
+assert.ifError(scopedContext.error);
+assert.equal(scopedContext.data?.is_super_admin, false);
+for (const permissionId of ['roles.manage', 'admin_users.manage', 'banners.manage']) {
+  const permission = await operator.rpc('has_permission', { p_permission_id: permissionId });
+  assert.ifError(permission.error);
+  assert.equal(permission.data, false, `Delegated moderator must not gain ${permissionId}`);
+}
+const beforeRevocation = await operator.rpc('has_permission', { p_permission_id: 'complaints.publish' });
+assert.ifError(beforeRevocation.error);
+assert.equal(beforeRevocation.data, true);
+
+// Revoke the live role assignment without logging out or replacing the AAL2 JWT.
+// The guarded RPC must re-check current SQL membership, not trust stale claims.
+sql(`DELETE FROM public.user_roles WHERE user_id = '${userId}' AND role_id = '${roleId}'`);
+const afterRevocation = await operator.rpc('has_permission', { p_permission_id: 'complaints.publish' });
+assert.ifError(afterRevocation.error);
+assert.equal(afterRevocation.data, false, 'AAL2 moderator must lose permission immediately after role revocation');
+const deniedAfterRevocation = await operator.rpc('admin_publish_complaint', { p_complaint_id: reportA });
+assert.ok(deniedAfterRevocation.error, 'Revoked moderator must not publish even with an AAL2 session');
+assert.equal(deniedAfterRevocation.error.code, '42501');
+assert.equal(sql(`SELECT status FROM public.complaints WHERE id = '${reportA}'`), 'submitted');
+
+// Restore only the disposable role assignment to continue the already-tested
+// publication, withdrawal and response lifecycle without weakening coverage.
+sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
+const afterRestore = await operator.rpc('has_permission', { p_permission_id: 'complaints.publish' });
+assert.ifError(afterRestore.error);
+assert.equal(afterRestore.data, true, 'Restored synthetic role should regain publish permission');
 
 const published = await operator.rpc('admin_publish_complaint', { p_complaint_id: reportA });
 assert.ifError(published.error);

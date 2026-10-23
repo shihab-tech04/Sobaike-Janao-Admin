@@ -1,0 +1,62 @@
+name: Phase17 Offsite Premerge History Backup
+on:
+  push:
+    branches:
+      - recovery/phase17-premerge-offsite-backup-20261023
+permissions:
+  contents: read
+jobs:
+  bundle-and-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone both complete Git histories and assert frozen release heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backup scratch
+          git clone --mirror https://github.com/shihab-tech04/Sobaike-Janao-Admin.git scratch/admin.git
+          git clone --mirror https://github.com/shihab-tech04/Sobaike-janao-public.git scratch/public.git
+          test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/main)" = "45580a1d3615c6b994fb6b44f84c158395f671c5"
+          test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/recovery/phase17-delegated-role-revocation-20261023)" = "c61f2a3a7d1145decfdb7737ac6091a0f033756f"
+          test "$(git --git-dir=scratch/public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
+          git --git-dir=scratch/admin.git bundle create "$PWD/backup/Admin-FULL.bundle" --all
+          git --git-dir=scratch/public.git bundle create "$PWD/backup/Public-FULL.bundle" --all
+          git bundle verify backup/Admin-FULL.bundle
+          git bundle verify backup/Public-FULL.bundle
+      - name: Independently restore each archive and validate exact SHAs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --mirror backup/Admin-FULL.bundle scratch/restored-admin.git
+          git clone --mirror backup/Public-FULL.bundle scratch/restored-public.git
+          git --git-dir=scratch/restored-admin.git fsck --full --no-reflogs
+          git --git-dir=scratch/restored-public.git fsck --full --no-reflogs
+          test "$(git --git-dir=scratch/restored-admin.git rev-parse refs/heads/main)" = "45580a1d3615c6b994fb6b44f84c158395f671c5"
+          test "$(git --git-dir=scratch/restored-admin.git rev-parse refs/heads/recovery/phase17-delegated-role-revocation-20261023)" = "c61f2a3a7d1145decfdb7737ac6091a0f033756f"
+          test "$(git --git-dir=scratch/restored-public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
+          printf 'admin_main=%s\nadmin_pr11=%s\npublic_main=%s\n'             '45580a1d3615c6b994fb6b44f84c158395f671c5'             'c61f2a3a7d1145decfdb7737ac6091a0f033756f'             '97d232970e3db3c032e005e6ebedff968b372e69' > backup/EXACT-REFS.txt
+          (cd backup && sha256sum Admin-FULL.bundle Public-FULL.bundle EXACT-REFS.txt > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+      - name: Package and locally re-verify backup archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile,ZIP_DEFLATED
+          paths = [Path("backup")/f for f in ("Admin-FULL.bundle","Public-FULL.bundle","EXACT-REFS.txt","SHA256SUMS.txt")]
+          target=Path("Sobaike_Phase17_BOTH_REPOS_FULL_HISTORY_Premerge.zip")
+          with ZipFile(target,"w",compression=ZIP_DEFLATED,compresslevel=6) as z:
+              for p in paths:z.write(p,arcname=p.name)
+          with ZipFile(target,"r") as z:
+              assert z.testzip() is None
+              assert len(z.namelist())==4
+          PY
+          sha256sum Sobaike_Phase17_BOTH_REPOS_FULL_HISTORY_Premerge.zip
+          echo 'SOBAlKE_PHASE17_OFF_GITHUB_READY_FULL_HISTORY_RESTORE_PASS'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sobaike-phase17-premerge-both-full-history
+          path: Sobaike_Phase17_BOTH_REPOS_FULL_HISTORY_Premerge.zip
+          retention-days: 7
+          if-no-files-found: error

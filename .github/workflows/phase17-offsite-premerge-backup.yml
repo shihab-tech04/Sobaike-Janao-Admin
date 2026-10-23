@@ -22,8 +22,8 @@ jobs:
           test "$(git --git-dir=scratch/public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
           git --git-dir=scratch/admin.git bundle create "$PWD/backup/Admin-FULL.bundle" --all
           git --git-dir=scratch/public.git bundle create "$PWD/backup/Public-FULL.bundle" --all
-          git bundle verify backup/Admin-FULL.bundle
-          git bundle verify backup/Public-FULL.bundle
+          git --git-dir=scratch/admin.git bundle verify "$PWD/backup/Admin-FULL.bundle"
+          git --git-dir=scratch/public.git bundle verify "$PWD/backup/Public-FULL.bundle"
       - name: Independently restore each archive and validate exact SHAs
         shell: bash
         run: |

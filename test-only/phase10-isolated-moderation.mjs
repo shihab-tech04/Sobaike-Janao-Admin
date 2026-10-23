@@ -115,9 +115,25 @@ const operator = createClient(api, anon, { auth: { persistSession: false, autoRe
 const signIn = await operator.auth.signInWithPassword({ email, password });
 assert.ifError(signIn.error);
 
+// Verify the same moderation decision reaches BOTH anonymous Public list views.
+ // These queries are against a disposable localhost database, never production.
+async function assertPublicDiscovery(reportId, shouldBeVisible, stage) {
+  for (const functionName of ['get_public_published_reports', 'get_public_home_feed']) {
+    const result = await publicClient.rpc(functionName);
+    assert.ifError(result.error);
+    assert.ok(Array.isArray(result.data), `${functionName} must return a Public array (${stage})`);
+    const matching = result.data.filter((item) => item?.id === reportId);
+    assert.equal(matching.length, shouldBeVisible ? 1 : 0,
+      `${functionName} visibility does not match ${stage} for ${reportId}`);
+    assert.ok(!JSON.stringify(result.data).includes('PRIVATE_SYNTHETIC'),
+      `${functionName} disclosed private synthetic reporter fields at ${stage}`);
+  }
+}
+
 const beforePublic = await publicClient.rpc('get_public_published_report', { p_report_id: reportA });
 assert.ifError(beforePublic.error);
 assert.equal(beforePublic.data, null, 'Unreviewed synthetic complaint must be hidden from Public');
+await assertPublicDiscovery(reportA, false, 'before moderation');
 
 const premature = await operator.rpc('admin_publish_complaint', { p_complaint_id: reportA });
 assert.ok(premature.error, 'AAL1 must not publish a complaint');
@@ -139,6 +155,7 @@ assert.equal(publicReport.data?.id, reportA);
 assert.equal(publicReport.data?.postOrigin, 'user');
 assert.equal(publicReport.data?.reporterName, null);
 assert.ok(!JSON.stringify(publicReport.data).includes('PRIVATE_SYNTHETIC'));
+await assertPublicDiscovery(reportA, true, 'after AAL2 publication');
 
 const responseInsert = `INSERT INTO public.complaint_responses(id, complaint_id, response_type, status, content)
   VALUES ('${responseA}', '${reportA}', 'citizen_information', 'pending_review', 'Synthetic additional information'),
@@ -166,6 +183,7 @@ assert.equal(sql(`SELECT status FROM public.complaints WHERE id = '${reportA}'`)
 const gone = await publicClient.rpc('get_public_published_report', { p_report_id: reportA });
 assert.ifError(gone.error);
 assert.equal(gone.data, null, 'Unpublished complaint must disappear from Public');
+await assertPublicDiscovery(reportA, false, 'after withdrawal');
 
 const noReason = await operator.rpc('admin_reject_complaint', { p_complaint_id: reportB, p_reason_code: '' });
 assert.ok(noReason.error, 'Reasonless rejection must fail');
@@ -177,6 +195,7 @@ assert.equal(sql(`SELECT status FROM public.complaints WHERE id = '${reportB}'`)
 const hidden = await publicClient.rpc('get_public_published_report', { p_report_id: reportB });
 assert.ifError(hidden.error);
 assert.equal(hidden.data, null);
+await assertPublicDiscovery(reportB, false, 'after rejection');
 
 const auditCount = Number(sql(`SELECT count(*) FROM public.admin_audit_logs WHERE target_id IN ('${reportA}', '${reportB}', '${responseA}', '${responseB}')`));
 assert.ok(auditCount >= 5, `Expected audited complaint and response transitions; found ${auditCount}`);

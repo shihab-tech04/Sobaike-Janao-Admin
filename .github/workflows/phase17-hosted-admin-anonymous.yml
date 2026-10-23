@@ -1,0 +1,51 @@
+name: Phase17 Hosted Anonymous Admin UI Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_run:
+    workflows: ["Production Smoke"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-anonymous-guard:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    name: Canonical Admin signed-out route guards (no credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HOSTED_ADMIN_BASE_URL: https://admin.shobaikejanao.com
+      HOSTED_ADMIN_EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
+    steps:
+      - name: Checkout test source from exact PR or successful production release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies and isolated browser test runner
+        run: |
+          npm ci
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Verify hosted release and signed-out UI routes
+        run: node tests/phase17-hosted-admin-anonymous-browser.mjs
+
+      - name: Preserve non-sensitive hosted acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase17-admin-hosted-signed-out-${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: ${{ runner.temp }}/sobaike-hosted-admin-anon/

@@ -274,7 +274,7 @@ function seedA10Banners() {
       mobileDescriptionEn:'E'.repeat(62),
       tabletDescriptionEn:'T'.repeat(62),
       desktopDescriptionEn:'D'.repeat(62),
-      illustrationSrc:'/illustrations/services/a10-synthetic-banner.jpg',
+      illustrationSrc:'https://127.0.0.1/illustrations/a10-banner.png',
       primaryCtaBn:'প্রতিবেদন করুন', primaryCtaEn:'Report now',
       isActive:true, showOnHome:true, sortOrder:index+1,
     };

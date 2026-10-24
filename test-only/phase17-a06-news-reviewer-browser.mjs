@@ -53,7 +53,7 @@ export async function runPhase17A06({ page, browserBaseUrl, readSourcedReportCou
     { id: 'source-dailystar403', itemKind: 'source', action: 'error', sourceHostname: 'www.thedailystar.net',
       reason: 'HTTP 403: synthetic access-denied source response' },
   ];
-  const dashboard = {
+  const currentDashboard = () => ({
     sources: [], automation: { enabled: false, intervalHours: 36, running: false },
     runs: scanComplete ? [{
       runId: 'A06-SYNTH-MANUAL-RUN', triggerType: 'manual', status: 'completed',
@@ -61,7 +61,7 @@ export async function runPhase17A06({ page, browserBaseUrl, readSourcedReportCou
       errorCount: 2, reviewCount: 3,
       items: [ready, held, duplicate, resumable, alreadyPublished, ...failures],
     }] : [],
-  };
+  });
 
   const respond = (route, data, status = 200) => route.fulfill({
     status, contentType: 'application/json', body: JSON.stringify(data),
@@ -76,7 +76,7 @@ export async function runPhase17A06({ page, browserBaseUrl, readSourcedReportCou
     }
     const p = u.pathname;
     if (p.endsWith('/rpc/admin_get_news_intake_automation_dashboard')) {
-      observedReads.push('dashboard'); await respond(route, dashboard); return;
+      observedReads.push('dashboard'); await respond(route, currentDashboard()); return;
     }
     if (p.endsWith('/rpc/admin_get_news_intake_scan_sources')) {
       observedReads.push('sources'); await respond(route, []); return;

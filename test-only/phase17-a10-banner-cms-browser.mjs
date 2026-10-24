@@ -19,13 +19,26 @@ export async function runPhase17A10({
   const grant = await authorizedClient.rpc('has_permission', {p_permission_id:'banners.manage'});
   assert.ifError(grant.error);
   assert.equal(grant.data, true);
+  const authorizedRead = await authorizedClient.rpc('admin_get_site_banners');
+  assert.ifError(authorizedRead.error);
+  assert.equal(authorizedRead.data.length,7,'Delegated AAL2 SQL RPC must read seven banner drafts');
 
   const goto = route => page.goto(browserBaseUrl.replace(/\/$/,'') + '/#' + route,
     {waitUntil:'domcontentloaded'});
   await page.setViewportSize({width:1280,height:850});
   await goto('/banners');
+  // SQL permissions were granted *after* the earlier A01-A09 browser session.
+  // Force a fresh authorization context rather than relying on cached roles.
+  await page.reload({waitUntil:'domcontentloaded'});
   await page.getByRole('heading',{name:'Banner CMS',exact:true}).waitFor({state:'visible'});
-  await page.locator('#banner-titleEn').waitFor({state:'visible'});
+  try {
+    await page.locator('#banner-titleEn').waitFor({state:'visible',timeout:13000});
+  } catch (error) {
+    console.log('PHASE17_A10_LOAD_DIAGNOSTIC',JSON.stringify({
+      url:page.url(), body:(await page.locator('body').innerText()).slice(-1800),
+    }));
+    throw error;
+  }
   await page.getByRole('button',{name:/A10 synthetic banner 1/}).waitFor({state:'visible'});
   assert.equal(await page.getByRole('button',{name:/A10 synthetic banner [1-7]/}).count(),
     7,'Seven loaded banner selection buttons required');

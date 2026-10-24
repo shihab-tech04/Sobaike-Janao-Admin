@@ -23,6 +23,11 @@ export async function runPhase17A10({
   assert.ifError(authorizedRead.error);
   assert.equal(authorizedRead.data.length,7,'Delegated AAL2 SQL RPC must read seven banner drafts');
 
+  // Synthetic preview served in-browser from loopback only, with zero external requests.
+  await page.route('https://127.0.0.1/illustrations/a10-banner.png', route => route.fulfill({
+    status:200, contentType:'image/png',
+    body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/B0kAAAAASUVORK5CYII=','base64'),
+  }));
   const goto = route => page.goto(browserBaseUrl.replace(/\/$/,'') + '/#' + route,
     {waitUntil:'domcontentloaded'});
   await page.setViewportSize({width:1280,height:850});

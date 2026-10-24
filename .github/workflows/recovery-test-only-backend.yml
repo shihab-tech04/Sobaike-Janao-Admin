@@ -185,7 +185,35 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Exercise Auth, real synthetic TOTP AAL2, RBAC and revocation
+        env:
+          RECOVERY_A01_FIXTURE_PATH: ${{ runner.temp }}/sobaike-a01-synthetic-only.json
         run: node test-only/phase09-isolated-auth-mfa.mjs
+
+      - name: Install temporary A01 Chromium on disposable runner
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Build exact-source Admin frontend against loopback-only Supabase Auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          export VITE_SUPABASE_URL="$RECOVERY_LOCAL_API_URL"
+          export VITE_SUPABASE_PUBLISHABLE_KEY="$RECOVERY_LOCAL_ANON_KEY"
+          test "$VITE_SUPABASE_URL" = "http://127.0.0.1:54321"
+          npm run build
+          test -f dist/index.html
+          git rev-parse HEAD > "$RUNNER_TEMP/sobaike-a01-source-sha.txt"
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > "$RUNNER_TEMP/sobaike-a01-preview.log" 2>&1 &
+          echo "LOCAL_A01_PREVIEW_PID=$!" >> "$GITHUB_ENV"
+          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/ -o "$RUNNER_TEMP/sobaike-a01-index.html"
+          cmp dist/index.html "$RUNNER_TEMP/sobaike-a01-index.html"
+
+      - name: Phase17 A01 real local Admin UI login MFA, roles, refresh and sign-out
+        env:
+          RECOVERY_A01_FIXTURE_PATH: ${{ runner.temp }}/sobaike-a01-synthetic-only.json
+          RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
+        run: node test-only/phase17-a01-authenticated-browser.mjs
 
       - name: Verify synthetic complaint and response moderation through Public SQL reads
         run: node test-only/phase10-isolated-moderation.mjs
@@ -225,5 +253,7 @@ jobs:
         if: always()
         working-directory: test-only/local-supabase
         run: |
+          if [[ -n "${LOCAL_A01_PREVIEW_PID:-}" ]]; then kill "$LOCAL_A01_PREVIEW_PID" 2>/dev/null || true; fi
+          rm -f "$RUNNER_TEMP/sobaike-a01-synthetic-only.json"
           if [[ -n "${LOCAL_ADMIN_EDGE_PID:-}" ]]; then kill "$LOCAL_ADMIN_EDGE_PID" 2>/dev/null || true; fi
           supabase stop >/dev/null 2>&1 || true

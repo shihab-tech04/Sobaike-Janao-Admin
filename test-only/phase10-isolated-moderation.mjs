@@ -292,6 +292,12 @@ await runPhase17A04({
        FROM public.subcategories WHERE id = '${id}') r), 'null')`);
     return JSON.parse(raw);
   },
+  readA09Form: async id => {
+    assert.match(id, /^a08_[a-f0-9]{8}$/);
+    const result = await operator.rpc('admin_get_reporting_form', {p_subcategory_id:id});
+    assert.ifError(result.error);
+    return result.data;
+  },
   responseParent,
   responseUiPublish,
   responseUiReject,

@@ -323,6 +323,13 @@ await runPhase17A04({
     return JSON.parse(raw);
   },
   seedA10Banners,
+  restoreA10TaxonomyBaseline: () => {
+    // A10's published parent fixtures are temporary and must not alter the
+    // original Phase11 expectation that synthetic parents start unpublished.
+    sql(`UPDATE public.segments SET config_status='draft'
+      WHERE id IN ('harassment','load_shedding','extortion','public_safety',
+        'road_transport','illegal_occupation','rickshaw')`);
+  },
   readA10Banner: id => {
     assert.ok(a10Keys.includes(id));
     return JSON.parse(sql(`SELECT row_to_json(b)::text FROM

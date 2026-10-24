@@ -26,6 +26,9 @@ const uiPublished = `SYNTH-UIPUB-${suffix.toUpperCase()}`;
 const uiRejected = `SYNTH-UIREJ-${suffix.toUpperCase()}`;
 const responseA = `SYNTH-RSP-${suffix.toUpperCase()}`;
 const responseB = `SYNTH-RRJ-${suffix.toUpperCase()}`;
+const responseParent = `SYNTH-RSPPAR-${suffix.toUpperCase()}`;
+const responseUiPublish = `SYNTH-UIRSPPUB-${suffix.toUpperCase()}`;
+const responseUiReject = `SYNTH-UIRSPREJ-${suffix.toUpperCase()}`;
 // Realistic but invented reporter location; never load real reporter telemetry.
 const syntheticReporterLat = 23.789123;
 const syntheticReporterLng = 90.412345;
@@ -73,6 +76,8 @@ sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
 ('complaints.publish', 'complaints', 'publish', 'Synthetic Publish', 'প্রকাশ পরীক্ষা'),
 ('complaints.unpublish', 'complaints', 'unpublish', 'Synthetic Unpublish', 'অপ্রকাশ পরীক্ষা'),
 ('complaints.reject', 'complaints', 'reject', 'Synthetic Reject', 'বাতিল পরীক্ষা'),
+('responses.view', 'responses', 'view', 'Synthetic Response View', 'প্রতিক্রিয়া দেখা'),
+('responses.resubmit', 'responses', 'resubmit', 'Synthetic Response Resubmit', 'পুনরায় পর্যালোচনা'),
 ('responses.publish', 'responses', 'publish', 'Synthetic Response Publish', 'প্রতিক্রিয়া প্রকাশ'),
 ('responses.reject', 'responses', 'reject', 'Synthetic Response Reject', 'প্রতিক্রিয়া বাতিল'),
 ('responses.unpublish', 'responses', 'unpublish', 'Synthetic Response Unpublish', 'প্রতিক্রিয়া অপ্রকাশ')`);
@@ -97,7 +102,7 @@ sql(`INSERT INTO public.roles(id, name_en, name_bn, active, is_system)
 sql(`INSERT INTO public.role_permissions(role_id, permission_id)
   SELECT '${roleId}', id FROM public.permissions WHERE id IN (
     'dashboard.view','complaints.view','complaints.publish','complaints.unpublish','complaints.reject',
-    'responses.publish','responses.reject','responses.unpublish')`);
+    'responses.view','responses.resubmit','responses.publish','responses.reject','responses.unpublish')`);
 sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
 
 // The production-derived fixture is deliberately metadata-only and contains
@@ -129,6 +134,28 @@ for (const id of [reportA, reportB, uiPublished, uiRejected]) {
     'PRIVATE_SYNTHETIC_NAME', 'PRIVATE_SYNTHETIC_CONTACT',
     '{"showDescription":true,"showGeneralLocation":true,"showSubjectName":false,"showOrganization":false}'::jsonb)`);
 }
+
+// Phase17 A07: independent published parent and two entirely synthetic citizen
+// responses, created before the actual Admin browser integration. All rows are
+// scoped to the disposable local Postgres database and never replicated.
+sql(`INSERT INTO public.complaints(
+    id, segment_id, subcategory_id, title, title_en, description, description_en,
+    incident_date, privacy_choice, division, district, status, origin_type,
+    reporter_name, reporter_contact, publication_preferences)
+  VALUES ('${responseParent}', 'public_safety', 'synthetic-public-safety',
+    'পরীক্ষামূলক প্রতিক্রিয়া', 'Synthetic A07 response parent report',
+    'শুধু পরীক্ষা', 'Entirely fictional citizen-response moderation test',
+    '2026-10-18', 'anonymous', 'Dhaka', 'Dhaka', 'published', 'citizen',
+    'PRIVATE_SYNTHETIC_PARENT_REPORTER', 'PRIVATE_SYNTHETIC_PARENT_CONTACT',
+    '{"showDescription":true,"showGeneralLocation":true,"showSubjectName":false,"showOrganization":false}'::jsonb)`);
+sql(`INSERT INTO public.complaint_responses (
+  id, complaint_id, response_type, status, content, contact_consent, contact_info)
+  VALUES ('${responseUiPublish}', '${responseParent}', 'citizen_information',
+    'pending_review', 'A07 fictional publication response', false,
+    'PRIVATE_SYNTHETIC_RESPONSE_CONTACT'),
+    ('${responseUiReject}', '${responseParent}', 'citizen_information',
+    'pending_review', 'A07 fictional rejected response', false,
+    'PRIVATE_SYNTHETIC_RESPONSE_CONTACT')`);
 
 // A05 privacy fixture: one submitted report with private device coordinates.
 // This runs solely on the verified disposable localhost Postgres.
@@ -256,6 +283,12 @@ await runPhase17A04({
     }
   },
   getSourcedCount: () => Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")),
+  responseParent,
+  responseUiPublish,
+  responseUiReject,
+  readResponseStatus: id => sql(`SELECT status FROM public.complaint_responses WHERE id = '${id}'`),
+  readResponseAuditCount: () => Number(sql(`SELECT count(*) FROM public.admin_audit_logs
+    WHERE target_id IN ('${responseUiPublish}', '${responseUiReject}')`)),
   publicClient,
 });
 const uiAuditCount = Number(sql(`SELECT count(*) FROM public.admin_audit_logs

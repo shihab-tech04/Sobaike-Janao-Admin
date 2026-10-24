@@ -30,7 +30,7 @@ export async function runPhase17A10({
   // SQL permissions were granted *after* the earlier A01-A09 browser session.
   // Force a fresh authorization context rather than relying on cached roles.
   await page.reload({waitUntil:'domcontentloaded'});
-  await page.getByRole('heading',{name:'Banner CMS',exact:true}).waitFor({state:'visible'});
+  await page.getByRole('heading',{name:'Banner CMS',exact:true,level:1}).waitFor({state:'visible'});
   try {
     await page.locator('#banner-titleEn').waitFor({state:'visible',timeout:13000});
   } catch (error) {
@@ -118,7 +118,7 @@ export async function runPhase17A10({
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
   assert.ok(overflow<=1,'Mobile Banner CMS overflow: '+overflow);
   await page.reload({waitUntil:'domcontentloaded'});
-  await page.getByRole('heading',{name:'Banner CMS',exact:true}).waitFor({state:'visible'});
+  await page.getByRole('heading',{name:'Banner CMS',exact:true,level:1}).waitFor({state:'visible'});
   // Saved sortOrder moves the synthetic banner to the end of the chooser.
   // Re-select it explicitly after reload instead of assuming first-row identity.
   await page.getByRole('button',{name:/A10 fiction draft changes/}).click();

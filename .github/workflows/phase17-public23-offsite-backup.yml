@@ -1,0 +1,58 @@
+name: Phase17 Public PR23 Offsite Recovery Bundle
+on:
+  push:
+    branches: [recovery/phase17-public23-offsite-backup-20261024]
+permissions:
+  contents: read
+jobs:
+  verify-full-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Clone both histories, bundle and restore exact release/candidate references
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bundles scratch
+          git clone --mirror https://github.com/shihab-tech04/Sobaike-Janao-Admin.git scratch/admin.git
+          git clone --mirror https://github.com/shihab-tech04/Sobaike-janao-public.git scratch/public.git
+          test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/main)" = "60a63a3b8ef9255c87116d14e955f7158eb0cc1b"
+          test "$(git --git-dir=scratch/public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
+          test "$(git --git-dir=scratch/public.git rev-parse refs/heads/acceptance/phase17-ranked-category-hosted-20261024)" = "12e4b1d2b9c1b69c74403b660bea2d816ee605eb"
+          git --git-dir=scratch/admin.git bundle create "$PWD/bundles/admin-complete.bundle" --all
+          git --git-dir=scratch/public.git bundle create "$PWD/bundles/public-complete.bundle" --all
+          git --git-dir=scratch/admin.git bundle verify "$PWD/bundles/admin-complete.bundle"
+          git --git-dir=scratch/public.git bundle verify "$PWD/bundles/public-complete.bundle"
+          git clone --mirror bundles/admin-complete.bundle scratch/restore-admin.git
+          git clone --mirror bundles/public-complete.bundle scratch/restore-public.git
+          git --git-dir=scratch/restore-admin.git fsck --full --no-reflogs
+          git --git-dir=scratch/restore-public.git fsck --full --no-reflogs
+          test "$(git --git-dir=scratch/restore-admin.git rev-parse refs/heads/main)" = "60a63a3b8ef9255c87116d14e955f7158eb0cc1b"
+          test "$(git --git-dir=scratch/restore-public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
+          test "$(git --git-dir=scratch/restore-public.git rev-parse refs/heads/acceptance/phase17-ranked-category-hosted-20261024)" = "12e4b1d2b9c1b69c74403b660bea2d816ee605eb"
+          printf '%s\n' "Admin main=60a63a3b8ef9255c87116d14e955f7158eb0cc1b" "Public main=97d232970e3db3c032e005e6ebedff968b372e69" "Public PR23=12e4b1d2b9c1b69c74403b660bea2d816ee605eb" > bundles/EXACT_REFS.txt
+          (cd bundles && sha256sum admin-complete.bundle public-complete.bundle EXACT_REFS.txt > SHA256SUMS.txt && sha256sum --check SHA256SUMS.txt)
+      - name: Package and validate archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from zipfile import ZipFile, ZIP_DEFLATED
+          from pathlib import Path
+          dst = Path("Sobaike_Phase17_PR23_Complete_Histories.zip")
+          names = ['admin-complete.bundle','public-complete.bundle','EXACT_REFS.txt','SHA256SUMS.txt']
+          with ZipFile(dst, 'w', compression=ZIP_DEFLATED, compresslevel=6) as archive:
+              for name in names:
+                  archive.write(Path('bundles') / name, name)
+          with ZipFile(dst, 'r') as archive:
+              assert archive.namelist() == names
+              assert archive.testzip() is None
+          PY
+          sha256sum Sobaike_Phase17_PR23_Complete_Histories.zip
+          echo PHASE17_PR23_FULL_HISTORY_OFFSITE_READY_PASS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase17-pr23-both-complete-history
+          path: Sobaike_Phase17_PR23_Complete_Histories.zip
+          if-no-files-found: error
+          retention-days: 14

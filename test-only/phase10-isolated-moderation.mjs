@@ -76,6 +76,10 @@ sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
 ('responses.publish', 'responses', 'publish', 'Synthetic Response Publish', 'প্রতিক্রিয়া প্রকাশ'),
 ('responses.reject', 'responses', 'reject', 'Synthetic Response Reject', 'প্রতিক্রিয়া বাতিল'),
 ('responses.unpublish', 'responses', 'unpublish', 'Synthetic Response Unpublish', 'প্রতিক্রিয়া অপ্রকাশ')`);
+// Dashboard.view is intentionally independent from complaints.view.
+sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn)
+  VALUES ('dashboard.view', 'dashboard', 'view', 'Synthetic Dashboard View', 'ড্যাশবোর্ড দেখা')
+  ON CONFLICT (id) DO NOTHING`);
 // These high-impact permissions exist for negative role-boundary assertions.
 // Phase09 may have seeded two of them already in this disposable stack.
 sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
@@ -92,7 +96,7 @@ sql(`INSERT INTO public.roles(id, name_en, name_bn, active, is_system)
   VALUES ('${roleId}', 'Synthetic Moderation Role', 'পরীক্ষামূলক মডারেটর', true, false)`);
 sql(`INSERT INTO public.role_permissions(role_id, permission_id)
   SELECT '${roleId}', id FROM public.permissions WHERE id IN (
-    'complaints.view','complaints.publish','complaints.unpublish','complaints.reject',
+    'dashboard.view','complaints.view','complaints.publish','complaints.unpublish','complaints.reject',
     'responses.publish','responses.reject','responses.unpublish')`);
 sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
 
@@ -235,6 +239,22 @@ await runPhase17A04({
   totpSecret: enroll.data.totp.secret,
   publishId: uiPublished, rejectId: uiRejected,
   readStatus: id => sql(`SELECT status FROM public.complaints WHERE id = '${id}'`),
+  getSqlDashboardSnapshot: () => JSON.parse(sql(`SELECT json_build_object(
+    'total', count(*),
+    'submitted', count(*) FILTER (WHERE status = 'submitted'),
+    'published', count(*) FILTER (WHERE status = 'published'),
+    'unpublished', count(*) FILTER (WHERE status = 'unpublished'),
+    'rejected', count(*) FILTER (WHERE status = 'rejected')
+  )::text FROM public.complaints`)),
+  setRecentReadGrant: (grant) => {
+    if (grant) {
+      sql(`INSERT INTO public.role_permissions(role_id, permission_id)
+        VALUES ('${roleId}', 'complaints.view') ON CONFLICT DO NOTHING`);
+    } else {
+      sql(`DELETE FROM public.role_permissions WHERE role_id = '${roleId}'
+        AND permission_id = 'complaints.view'`);
+    }
+  },
   publicClient,
 });
 const uiAuditCount = Number(sql(`SELECT count(*) FROM public.admin_audit_logs

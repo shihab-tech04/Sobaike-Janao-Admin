@@ -23,6 +23,9 @@ export async function runPhase17A09({
 
   await page.setViewportSize({width:1280, height:850});
   await goto('/categories');
+  // A08 deliberately leaves a failed-publication dialog open to prove server denial.
+  // A fresh isolated document removes that test-only overlay, preserving Auth state.
+  await page.reload({waitUntil:'domcontentloaded'});
   await page.locator('#taxonomy-search-input').fill(syntheticId);
   const row = page.locator('tr').filter({hasText:syntheticId});
   await row.waitFor({state:'visible'});

@@ -14,7 +14,7 @@ export async function runPhase17A03({ page, browserBaseUrl, inspectionId, otherI
   const origin = browserBaseUrl.replace(/\/$/, '');
   const goto = path => page.goto(origin + '/#' + path, { waitUntil: 'domcontentloaded' });
   const waitHash = hash => page.waitForURL(url => url.hash === hash, { timeout: 45_000 });
-  const search = page.getByRole('textbox', { name: 'Search Complaints' });
+  const search = page.getByRole('textbox', { name: 'Search Complaints', exact: true });
 
   await goto('/complaints');
   await search.waitFor({ state: 'visible' });

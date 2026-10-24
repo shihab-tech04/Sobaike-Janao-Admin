@@ -23,6 +23,10 @@ const reportA = `SYNTH-MOD-${suffix.toUpperCase()}`;
 const reportB = `SYNTH-REJ-${suffix.toUpperCase()}`;
 const responseA = `SYNTH-RSP-${suffix.toUpperCase()}`;
 const responseB = `SYNTH-RRJ-${suffix.toUpperCase()}`;
+// Realistic but invented reporter location; never load real reporter telemetry.
+const syntheticReporterLat = 23.789123;
+const syntheticReporterLng = 90.412345;
+const syntheticPrivateSession = `PRIVATE_SYNTHETIC_SESSION_${suffix}`;
 
 function sql(statement, expectFailure = false) {
   try {
@@ -118,6 +122,17 @@ for (const id of [reportA, reportB]) {
     '{"showDescription":true,"showGeneralLocation":true,"showSubjectName":false,"showOrganization":false}'::jsonb)`);
 }
 
+// A05 privacy fixture: one submitted report with private device coordinates.
+// This runs solely on the verified disposable localhost Postgres.
+sql(`INSERT INTO public.complaint_submission_contexts (
+  complaint_id, client_submission_id, visitor_id, session_id,
+  reporter_latitude, reporter_longitude, accuracy_meters, captured_at)
+  VALUES ('${reportA}', 'synthetic-submission-${suffix}',
+    'PRIVATE_SYNTHETIC_VISITOR_${suffix}', '${syntheticPrivateSession}',
+    ${syntheticReporterLat}, ${syntheticReporterLng}, 14.0, now())`);
+assert.equal(sql(`SELECT count(*) FROM public.complaint_submission_contexts
+  WHERE complaint_id = '${reportA}'`), '1', 'Private synthetic location fixture must exist');
+
 const operator = createClient(api, anon, { auth: { persistSession: false, autoRefreshToken: false } });
 const signIn = await operator.auth.signInWithPassword({ email, password });
 assert.ifError(signIn.error);
@@ -142,6 +157,21 @@ assert.ifError(beforePublic.error);
 assert.equal(beforePublic.data, null, 'Unreviewed synthetic complaint must be hidden from Public');
 await assertPublicDiscovery(reportA, false, 'before moderation');
 
+// A05: neither an anonymous visitor nor an AAL1 delegated moderator may
+// retrieve private reporter GPS even when a concrete location record exists.
+const anonReporterGps = await publicClient.rpc('admin_get_complaint_reporter_location', {
+  p_complaint_id: reportA,
+});
+assert.ok(anonReporterGps.error, 'Anonymous request must not read reporter GPS');
+assert.ok(!JSON.stringify(anonReporterGps.data).includes(String(syntheticReporterLat)));
+assert.ok(!JSON.stringify(anonReporterGps.data).includes(String(syntheticReporterLng)));
+const aal1ReporterGps = await operator.rpc('admin_get_complaint_reporter_location', {
+  p_complaint_id: reportA,
+});
+assert.ok(aal1ReporterGps.error, 'Delegated AAL1 request must not read reporter GPS');
+assert.equal(aal1ReporterGps.error.code, '42501');
+assert.ok(!JSON.stringify(aal1ReporterGps.data).includes(String(syntheticReporterLat)));
+
 const premature = await operator.rpc('admin_publish_complaint', { p_complaint_id: reportA });
 assert.ok(premature.error, 'AAL1 must not publish a complaint');
 assert.equal(premature.error.code, '42501');
@@ -162,6 +192,14 @@ for (const permissionId of ['roles.manage', 'admin_users.manage', 'banners.manag
   assert.ifError(permission.error);
   assert.equal(permission.data, false, `Delegated moderator must not gain ${permissionId}`);
 }
+// Even an AAL2 moderator with the complaint publication role is NOT a
+// Super Administrator. AAL2 is necessary but not sufficient for reporter GPS.
+const aal2ReporterGps = await operator.rpc('admin_get_complaint_reporter_location', {
+  p_complaint_id: reportA,
+});
+assert.ok(aal2ReporterGps.error, 'Non-Super Admin at AAL2 must not read reporter GPS');
+assert.equal(aal2ReporterGps.error.code, '42501');
+assert.ok(!JSON.stringify(aal2ReporterGps.data).includes(String(syntheticReporterLat)));
 const beforeRevocation = await operator.rpc('has_permission', { p_permission_id: 'complaints.publish' });
 assert.ifError(beforeRevocation.error);
 assert.equal(beforeRevocation.data, true);
@@ -193,6 +231,12 @@ assert.equal(publicReport.data?.id, reportA);
 assert.equal(publicReport.data?.postOrigin, 'user');
 assert.equal(publicReport.data?.reporterName, null);
 assert.ok(!JSON.stringify(publicReport.data).includes('PRIVATE_SYNTHETIC'));
+for (const forbiddenTelemetry of [
+  String(syntheticReporterLat), String(syntheticReporterLng), syntheticPrivateSession,
+]) {
+  assert.ok(!JSON.stringify(publicReport.data).includes(forbiddenTelemetry),
+    'Public report detail disclosed private reporter device data');
+}
 await assertPublicDiscovery(reportA, true, 'after AAL2 publication');
 
 const responseInsert = `INSERT INTO public.complaint_responses(id, complaint_id, response_type, status, content)
@@ -237,4 +281,15 @@ await assertPublicDiscovery(reportB, false, 'after rejection');
 
 const auditCount = Number(sql(`SELECT count(*) FROM public.admin_audit_logs WHERE target_id IN ('${reportA}', '${reportB}', '${responseA}', '${responseB}')`));
 assert.ok(auditCount >= 5, `Expected audited complaint and response transitions; found ${auditCount}`);
+const auditDetails = sql(`SELECT coalesce(jsonb_agg(details),'[]'::jsonb)::text
+  FROM public.admin_audit_logs
+  WHERE target_id IN ('${reportA}', '${reportB}', '${responseA}', '${responseB}')`);
+for (const sensitiveValue of [
+  'PRIVATE_SYNTHETIC', String(syntheticReporterLat), String(syntheticReporterLng),
+  syntheticPrivateSession,
+]) {
+  assert.ok(!auditDetails.includes(sensitiveValue),
+    'Audit detail must not expose synthetic private reporter location or session context');
+}
+console.log('PHASE17_A05_PRIVATE_REPORTER_GPS_DENIAL_AND_AUDIT_PRIVACY_PASS');
 console.log('PHASE10_ISOLATED_MODERATION_AND_PUBLIC_SYNC_PASS');

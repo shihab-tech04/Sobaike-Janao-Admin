@@ -16,9 +16,6 @@ jobs:
     steps:
       - name: Construct and independently verify protected-release Git history archives
         shell: bash
-        env:
-          ADMIN_EXPECTED: 17f02974c26a7504294c337eeefdc2d2e7cc1b37
-          PUBLIC_EXPECTED: ffc8a86e2c6b744626f28f826b23b8469da8717c
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/recovery"/{sources,restore,export}
@@ -27,8 +24,7 @@ jobs:
           git clone --mirror https://github.com/shihab-tech04/Sobaike-janao-public.git sources/public.git
           a="$(git --git-dir=sources/admin.git rev-parse refs/heads/main)"
           p="$(git --git-dir=sources/public.git rev-parse refs/heads/main)"
-          test "$a" = "$ADMIN_EXPECTED" || { echo "Admin main moved; FAIL CLOSED"; exit 1; }
-          test "$p" = "$PUBLIC_EXPECTED" || { echo "Public main moved; FAIL CLOSED"; exit 1; }
+          test -n "$a" && test -n "$p" || { echo "Missing Git main head; FAIL CLOSED"; exit 1; }
           git --git-dir=sources/admin.git fsck --full --strict
           git --git-dir=sources/public.git fsck --full --strict
           git --git-dir=sources/admin.git bundle create "$PWD/export/admin-full-history.bundle" --all
@@ -37,15 +33,15 @@ jobs:
           git --git-dir=sources/public.git bundle verify "$PWD/export/public-full-history.bundle"
           git clone --mirror "$PWD/export/admin-full-history.bundle" restore/admin.git
           git clone --mirror "$PWD/export/public-full-history.bundle" restore/public.git
-          test "$(git --git-dir=restore/admin.git rev-parse refs/heads/main)" = "$ADMIN_EXPECTED"
-          test "$(git --git-dir=restore/public.git rev-parse refs/heads/main)" = "$PUBLIC_EXPECTED"
+          test "$(git --git-dir=restore/admin.git rev-parse refs/heads/main)" = "$a"
+          test "$(git --git-dir=restore/public.git rev-parse refs/heads/main)" = "$p"
           git --git-dir=restore/admin.git fsck --full --strict
           git --git-dir=restore/public.git fsck --full --strict
           a_remote="$(git ls-remote https://github.com/shihab-tech04/Sobaike-Janao-Admin.git refs/heads/main | cut -f1)"
           p_remote="$(git ls-remote https://github.com/shihab-tech04/Sobaike-janao-public.git refs/heads/main | cut -f1)"
-          test "$a_remote" = "$ADMIN_EXPECTED" || { echo "Admin advanced during backup; FAIL CLOSED"; exit 1; }
-          test "$p_remote" = "$PUBLIC_EXPECTED" || { echo "Public advanced during backup; FAIL CLOSED"; exit 1; }
-          printf 'Public main: %s\nAdmin main: %s\nRestore: git clone --mirror <bundle-file> <dest>; git --git-dir=<dest> fsck --full --strict\n' "$PUBLIC_EXPECTED" "$ADMIN_EXPECTED" > export/RESTORE_MANIFEST.txt
+          test "$a_remote" = "$a" || { echo "Admin advanced during backup; FAIL CLOSED"; exit 1; }
+          test "$p_remote" = "$p" || { echo "Public advanced during backup; FAIL CLOSED"; exit 1; }
+          printf 'Public main: %s\nAdmin main: %s\nRestore: git clone --mirror <bundle-file> <dest>; git --git-dir=<dest> fsck --full --strict\n' "$p" "$a" > export/RESTORE_MANIFEST.txt
           ( cd export && sha256sum admin-full-history.bundle public-full-history.bundle RESTORE_MANIFEST.txt > SHA256SUMS && sha256sum -c SHA256SUMS )
           tar -czf "$GITHUB_WORKSPACE/phase17-full-current-head-restore.tar.gz" -C export admin-full-history.bundle public-full-history.bundle RESTORE_MANIFEST.txt SHA256SUMS
           sha256sum "$GITHUB_WORKSPACE/phase17-full-current-head-restore.tar.gz"

@@ -60,7 +60,7 @@
 | GAP-05 | Post origin and author distinctions | PARTIAL | Public postOrigin isolated checks; safe source context and Admin provenance UI unverified |
 | GAP-06 | Admin visual system light/dark | PARTIAL | Shared components exist; final cross-route device/token acceptance unverified |
 | GAP-07 | Admin unified table/filters/sorting | PARTIAL | A03 responsive queue passed; other modules column sort/filter parity unverified |
-| GAP-08 | Sensitive taxonomy label change | OPEN | Verify current published EN/BN Rape / Attempt to Rape, not recovered legacy copy |
+| GAP-08 | Sensitive taxonomy label change | PARTIAL | Read-only hosted SQL confirmed active, published `rape-sexual-violence` with EN `Rape / Attempt to Rape` and BN `ধর্ষণ / ধর্ষণের চেষ্টা`; both labels and identifier present in anon-granted `get_public_reporting_configuration()` output; **actual Public DOM EN/BN rendering not yet verified** |
 | GAP-09 | Source link safety | PARTIAL | P05 source browser substep; actual source links and citizen URL text behavior unverified |
 | GAP-10 | Bangla phonetic input | OPEN | Composer implementation exists; full EN/BN controlled typing path unverified |
 | GAP-11 | Canonical PNG favicon SEO | PARTIAL | PNG files present; canonical live head/meta/manifest/search results unverified |
@@ -78,7 +78,7 @@
 | GAP-23 | October Admin News/UX/performance | PARTIAL | News module exists, A06 local passed; comprehensive performance/UX acceptance unverified |
 | GAP-24 | Search Console Soft 404 | OPEN | Actual Search Console investigation and live route indexing correction not verified |
 
-**Gap count:** 19 PARTIAL, 2 CONFLICT, 3 OPEN, **0 certified FIXED**. Do not report the historical 24 as solved.
+**Gap count:** 20 PARTIAL, 2 CONFLICT, 2 OPEN, **0 certified FIXED**. Do not report the historical 24 as solved.
 
 ## Release-critical gates still required
 
@@ -105,4 +105,16 @@
 - Verified existing off-GitHub [Drive PR20 candidate archive](https://drive.google.com/file/d/1rz_pPN_XSzylMigA-Y9d9S59aqNckyUs/view) metadata: 3,637,380-byte ZIP, with successful [restore/checksum run 40070718670](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40070718670). **This is a pre-merge archive for PR head `131b4b0...`, not a newly verified archive containing the post-merge `17f02974...` commit**. Recreate and independently restore the exact current release heads before the next production modification.
 - Hosted replacement Supabase `eztqgqgpluoqwmprgeas` observed ACTIVE_HEALTHY and unchanged aggregate table counts: 195 complaints / 169 published, 7 responses, 7 segments, 7 banners, 8 divisions / 64 districts / 601 upazilas, 441 audit events. Read-only `pg_proc` grant inspection found no anonymous EXECUTE on the inspected `admin_*` functions; this is not an authenticated role-negative test or exhaustive RLS certification.
 - Current regular-chat Browser connection allows only tab list/read; no controllable hosted Admin signed-in session or real email/TOTP action. Web-host fetch was disabled. Prior canonical smoke is cited as recorded CI evidence, not asserted to be independently reproduced here.
-- Historical gaps remain **19 PARTIAL / 2 CONFLICT / 3 OPEN / 0 certified FIXED**. GAP-18 draft persistence and GAP-19 IP/GPS consent are preserved unresolved. Current citizen reports, private evidence and original Supabase `ahiaymyqfmyyrjkwgvhi` were not touched. Do not merge this documentation update or mark Phase 17 complete from isolated evidence.
+- Historical gaps remain **20 PARTIAL / 2 CONFLICT / 2 OPEN / 0 certified FIXED**; GAP-08 was advanced from OPEN to PARTIAL based on published data and anonymous RPC configuration, not a browser pass. GAP-18 draft persistence and GAP-19 IP/GPS consent are preserved unresolved. Current citizen reports, private evidence and original Supabase `ahiaymyqfmyyrjkwgvhi` were not touched. Do not merge this documentation update or mark Phase 17 complete from isolated evidence.
+
+### Reproducible read-only GAP-08 public-config contract evidence
+
+```sql
+select
+  has_function_privilege('anon','public.get_public_reporting_configuration()','execute') as anon_can_get_config,
+  position('Rape / Attempt to Rape' in public.get_public_reporting_configuration()::text) > 0 as en_label_published,
+  position('ধর্ষণ / ধর্ষণের চেষ্টা' in public.get_public_reporting_configuration()::text) > 0 as bn_label_published,
+  position('rape-sexual-violence' in public.get_public_reporting_configuration()::text) > 0 as identifier_in_public_config;
+```
+
+Observed October 24: all four booleans TRUE. The active published subcategory retains its existing stable identifier; no taxonomy rekey or migration was needed or attempted. GAP-08 cannot advance from PARTIAL until the real Public UI is observed using this configuration in both languages.

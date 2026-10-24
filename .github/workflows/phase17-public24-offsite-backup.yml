@@ -17,7 +17,7 @@ jobs:
           git clone --mirror https://github.com/shihab-tech04/Sobaike-Janao-Admin.git scratch/admin.git
           git clone --mirror https://github.com/shihab-tech04/Sobaike-janao-public.git scratch/public.git
           test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/main)" = "60a63a3b8ef9255c87116d14e955f7158eb0cc1b"
-          test "$(git --git-dir=scratch/public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
+          test "$(git --git-dir=scratch/public.git rev-parse refs/heads/main)" = "6dd58dbfeff047668992636be4210f949a32a14e"
           test "$(git --git-dir=scratch/public.git rev-parse refs/heads/acceptance/phase17-public-recovery-states-20261024)" = "fc2587ec08ce7e1ddf27a007db954ec158af90dd"
           git --git-dir=scratch/admin.git bundle create "$PWD/bundles/admin-complete.bundle" --all
           git --git-dir=scratch/public.git bundle create "$PWD/bundles/public-complete.bundle" --all
@@ -28,9 +28,9 @@ jobs:
           git --git-dir=scratch/restore-admin.git fsck --full --no-reflogs
           git --git-dir=scratch/restore-public.git fsck --full --no-reflogs
           test "$(git --git-dir=scratch/restore-admin.git rev-parse refs/heads/main)" = "60a63a3b8ef9255c87116d14e955f7158eb0cc1b"
-          test "$(git --git-dir=scratch/restore-public.git rev-parse refs/heads/main)" = "97d232970e3db3c032e005e6ebedff968b372e69"
+          test "$(git --git-dir=scratch/restore-public.git rev-parse refs/heads/main)" = "6dd58dbfeff047668992636be4210f949a32a14e"
           test "$(git --git-dir=scratch/restore-public.git rev-parse refs/heads/acceptance/phase17-public-recovery-states-20261024)" = "fc2587ec08ce7e1ddf27a007db954ec158af90dd"
-          printf '%s\n' "Admin main=60a63a3b8ef9255c87116d14e955f7158eb0cc1b" "Public main=97d232970e3db3c032e005e6ebedff968b372e69" "Public PR24=fc2587ec08ce7e1ddf27a007db954ec158af90dd" > bundles/EXACT_REFS.txt
+          printf '%s\n' "Admin main=60a63a3b8ef9255c87116d14e955f7158eb0cc1b" "Public main=6dd58dbfeff047668992636be4210f949a32a14e" "Public PR24=fc2587ec08ce7e1ddf27a007db954ec158af90dd" > bundles/EXACT_REFS.txt
           (cd bundles && sha256sum admin-complete.bundle public-complete.bundle EXACT_REFS.txt > SHA256SUMS.txt && sha256sum --check SHA256SUMS.txt)
       - name: Package and validate archive
         shell: bash

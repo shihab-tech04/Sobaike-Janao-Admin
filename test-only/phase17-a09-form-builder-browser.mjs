@@ -29,7 +29,8 @@ export async function runPhase17A09({
   await row.getByRole('button',{name:'Details'}).click();
   await page.locator('#taxonomy-form-open').click();
   await page.getByText('Reporting Form Builder',{exact:true}).waitFor({state:'visible'});
-  await page.locator('#form-status').getByText(/DRAFT/).waitFor({state:'visible'});
+  await page.locator('#form-status').waitFor({state:'visible'});
+  assert.match(await page.locator('#form-status').innerText(),/DRAFT/);
   const original=await form();
   assert.equal(original.schema.status,'draft');
   assert.equal(original.fields.length,6);
@@ -84,7 +85,8 @@ export async function runPhase17A09({
   assert.equal(await isPublic(),false);
   await page.locator('#form-publish-open').click();
   await page.locator('#form-publish-confirm').click();
-  await page.locator('#form-status').getByText(/PUBLISHED/).waitFor({state:'visible'});
+  await page.getByText(/Form published\./).waitFor({state:'visible'});
+  assert.match(await page.locator('#form-status').innerText(),/PUBLISHED/);
   const published=await form();
   assert.equal(published.schema.status,'published');
   assert.equal(published.fields.length,7);

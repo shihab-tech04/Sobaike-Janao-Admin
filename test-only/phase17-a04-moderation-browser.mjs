@@ -7,6 +7,7 @@ import { runPhase17A06 } from './phase17-a06-news-reviewer-browser.mjs';
 import { runPhase17A07 } from './phase17-a07-response-moderation-browser.mjs';
 import { runPhase17A08 } from './phase17-a08-taxonomy-browser.mjs';
 import { runPhase17A09 } from './phase17-a09-form-builder-browser.mjs';
+import { runPhase17A10 } from './phase17-a10-banner-cms-browser.mjs';
 
 // This fixture exercises actual Admin React components and production-derived
 // local RPC/roles without any hosted account or citizen data.
@@ -15,6 +16,8 @@ export async function runPhase17A04({
   publishId, rejectId, readStatus, publicClient, getSqlDashboardSnapshot, setRecentReadGrant, getSourcedCount,
   responseParent, responseUiPublish, responseUiReject, readResponseStatus, readResponseAuditCount,
   a08SubcategoryId, readA08TaxonomyRow, readA09Form,
+  seedA10Banners, restoreA10TaxonomyBaseline,
+  readA10Banner, countA10Banners, countPublicA10Banners, authorizedClient,
 }) {
   assert.equal(new URL(apiUrl).origin, 'http://127.0.0.1:54321');
   assert.equal(new URL(browserBaseUrl).origin, 'http://127.0.0.1:4173');
@@ -166,6 +169,12 @@ export async function runPhase17A04({
       page, browserBaseUrl, publicClient,
       syntheticId: a08SubcategoryId, readForm: readA09Form,
     });
+    await runPhase17A10({
+      page, browserBaseUrl, publicClient, authorizedClient,
+      seedBanners: seedA10Banners, readBanner: readA10Banner,
+      countBanners: countA10Banners, countPublicBanners: countPublicA10Banners,
+    });
+    restoreA10TaxonomyBaseline();
 
     assert.deepEqual(reporterRequests,[],'Delegated Admin UI must never request protected reporter GPS');
     const external=[...blockedExternal].filter(h=>!['fonts.googleapis.com','fonts.gstatic.com'].includes(h));

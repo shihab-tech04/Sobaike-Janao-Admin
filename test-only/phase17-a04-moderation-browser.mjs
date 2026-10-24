@@ -3,12 +3,13 @@ import { createHmac } from 'node:crypto';
 import { chromium } from 'playwright';
 import { runPhase17A03 } from './phase17-a03-queue-detail-browser.mjs';
 import { runPhase17A02 } from './phase17-a02-dashboard-browser.mjs';
+import { runPhase17A06 } from './phase17-a06-news-reviewer-browser.mjs';
 
 // This fixture exercises actual Admin React components and production-derived
 // local RPC/roles without any hosted account or citizen data.
 export async function runPhase17A04({
   apiUrl, browserBaseUrl, email, password, totpSecret,
-  publishId, rejectId, readStatus, publicClient, getSqlDashboardSnapshot, setRecentReadGrant,
+  publishId, rejectId, readStatus, publicClient, getSqlDashboardSnapshot, setRecentReadGrant, getSourcedCount,
 }) {
   assert.equal(new URL(apiUrl).origin, 'http://127.0.0.1:54321');
   assert.equal(new URL(browserBaseUrl).origin, 'http://127.0.0.1:4173');
@@ -140,6 +141,10 @@ export async function runPhase17A04({
       getSqlSnapshot: getSqlDashboardSnapshot,
       setRecentReadGrant,
     });
+
+    // A06 exercises the real React reviewer, but intercepts only synthetic
+    // news preview/read and failure responses; no live news or SQL writes.
+    await runPhase17A06({ page, browserBaseUrl, readSourcedReportCount: getSourcedCount });
 
     assert.deepEqual(reporterRequests,[],'Delegated Admin UI must never request protected reporter GPS');
     const external=[...blockedExternal].filter(h=>!['fonts.googleapis.com','fonts.gstatic.com'].includes(h));

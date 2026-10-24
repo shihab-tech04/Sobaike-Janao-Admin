@@ -255,6 +255,7 @@ await runPhase17A04({
         AND permission_id = 'complaints.view'`);
     }
   },
+  getSourcedCount: () => Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")),
   publicClient,
 });
 const uiAuditCount = Number(sql(`SELECT count(*) FROM public.admin_audit_logs

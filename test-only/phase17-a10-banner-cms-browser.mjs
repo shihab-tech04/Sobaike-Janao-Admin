@@ -132,7 +132,15 @@ export async function runPhase17A10({
   // Saved sortOrder moves the synthetic banner to the end of the chooser.
   // Re-select it explicitly after reload instead of assuming first-row identity.
   await page.getByRole('button',{name:/A10 fiction draft changes/}).click();
-  assert.equal(await page.getByLabel('Active banner').isChecked(),false);
+  let reflectedInactive=false;
+  for(let attempt=0;attempt<40;attempt++){
+    if(!(await page.getByLabel('Active banner').isChecked())){
+      reflectedInactive=true;
+      break;
+    }
+    await page.waitForTimeout(100);
+  }
+  assert.equal(reflectedInactive,true,'Reload must restore selected inactive banner state');
   assert.equal((await publicBanner()).content.isActive,false);
   console.log('PHASE17_A10_MOBILE_WITHDRAWAL_RELOAD_AND_PUBLIC_STATE_PASS');
 }

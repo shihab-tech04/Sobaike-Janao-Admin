@@ -17,6 +17,12 @@ export async function runPhase17A07({
   const drawer = () => page.getByRole('dialog').first();
   const confirm = () => page.getByRole('dialog').last();
   const view = async (id, mobile = false) => {
+    // Route stays mounted when navigating to the same /responses hash.
+    // Close any existing detail sheet before selecting a different row.
+    if (await page.getByRole('dialog').count() > 0) {
+      await drawer().getByRole('button', { name: 'Close', exact: true }).click();
+      await drawer().waitFor({ state: 'hidden' });
+    }
     await goto('/responses');
     const name = mobile ? 'View response ' + id : 'View #' + id;
     const button = page.getByRole('button', { name, exact: true });

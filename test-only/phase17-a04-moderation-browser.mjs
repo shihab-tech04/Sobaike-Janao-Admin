@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { chromium } from 'playwright';
+import { runPhase17A03 } from './phase17-a03-queue-detail-browser.mjs';
 
 // This fixture exercises actual Admin React components and production-derived
 // local RPC/roles without any hosted account or citizen data.
@@ -122,6 +123,16 @@ export async function runPhase17A04({
     assert.ifError(rejectedPublic.error);
     assert.equal(rejectedPublic.data,null);
     console.log('PHASE17_A04_UI_REJECTION_REQUIRES_REASON_PASS');
+
+    // The same genuine authorized AAL2 browser session now checks A03 queue,
+    // desktop/mobile detail navigation and fail-closed private inspection.
+    await runPhase17A03({
+      page,
+      browserBaseUrl,
+      inspectionId: publishId.replace('UIPUB', 'MOD'),
+      otherId: rejectId.replace('UIREJ', 'REJ'),
+      readStatus,
+    });
 
     assert.deepEqual(reporterRequests,[],'Delegated Admin UI must never request protected reporter GPS');
     const external=[...blockedExternal].filter(h=>!['fonts.googleapis.com','fonts.gstatic.com'].includes(h));

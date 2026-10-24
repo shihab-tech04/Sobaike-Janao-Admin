@@ -18,7 +18,7 @@ jobs:
           git clone --mirror https://github.com/shihab-tech04/Sobaike-Janao-Admin.git scratch/admin.git
           git clone --mirror https://github.com/shihab-tech04/Sobaike-janao-public.git scratch/public.git
           test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/main)" = "7be78ae77e5ac87655cca64c03d3bf61e3efbea4"
-          test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/acceptance/phase17-a07-response-moderation-browser-20261024)" = "2f005d40eadbaf4e8e4cc026ed81d58e50f61a80"
+          test "$(git --git-dir=scratch/admin.git rev-parse refs/heads/acceptance/phase17-a07-response-moderation-browser-20261024)" = "b6e220e3af422f2649a7f14baf89624728ee40b4"
           test "$(git --git-dir=scratch/public.git rev-parse refs/heads/main)" = "ffc8a86e2c6b744626f28f826b23b8469da8717c"
           git --git-dir=scratch/admin.git bundle create "$PWD/bundles/admin-complete.bundle" --all
           git --git-dir=scratch/public.git bundle create "$PWD/bundles/public-complete.bundle" --all
@@ -29,9 +29,9 @@ jobs:
           git --git-dir=scratch/restored-admin.git fsck --full --no-reflogs
           git --git-dir=scratch/restored-public.git fsck --full --no-reflogs
           test "$(git --git-dir=scratch/restored-admin.git rev-parse refs/heads/main)" = "7be78ae77e5ac87655cca64c03d3bf61e3efbea4"
-          test "$(git --git-dir=scratch/restored-admin.git rev-parse refs/heads/acceptance/phase17-a07-response-moderation-browser-20261024)" = "2f005d40eadbaf4e8e4cc026ed81d58e50f61a80"
+          test "$(git --git-dir=scratch/restored-admin.git rev-parse refs/heads/acceptance/phase17-a07-response-moderation-browser-20261024)" = "b6e220e3af422f2649a7f14baf89624728ee40b4"
           test "$(git --git-dir=scratch/restored-public.git rev-parse refs/heads/main)" = "ffc8a86e2c6b744626f28f826b23b8469da8717c"
-          printf '%s\n' "Admin main=7be78ae77e5ac87655cca64c03d3bf61e3efbea4" "Admin PR18=2f005d40eadbaf4e8e4cc026ed81d58e50f61a80" "Public main=ffc8a86e2c6b744626f28f826b23b8469da8717c" > bundles/EXACT_REFS.txt
+          printf '%s\n' "Admin main=7be78ae77e5ac87655cca64c03d3bf61e3efbea4" "Admin PR18=b6e220e3af422f2649a7f14baf89624728ee40b4" "Public main=ffc8a86e2c6b744626f28f826b23b8469da8717c" > bundles/EXACT_REFS.txt
           (cd bundles && sha256sum admin-complete.bundle public-complete.bundle EXACT_REFS.txt > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
       - name: Package and checksum offline recovery artifact
         run: |

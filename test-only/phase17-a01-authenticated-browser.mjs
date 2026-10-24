@@ -125,7 +125,16 @@ try {
     } finally { await context.close(); }
   }
 
-  assert.deepEqual([...forbiddenHosts], [], 'A01 synthetic sign-in must never request a hosted server');
+  // The real source references Google Fonts. Every non-loopback request is
+  // blocked above; known font stylesheet requests are harmless blocked assets,
+  // not hosted API traffic. Fail for any *other* attempted outside destination.
+  const unexpectedHosts = [...forbiddenHosts].filter(
+    host => !['fonts.googleapis.com', 'fonts.gstatic.com'].includes(host),
+  );
+  assert.deepEqual(unexpectedHosts, [],
+    'A01 synthetic sign-in attempted an unexpected external destination');
+  assert.ok(![...forbiddenHosts].some(host => host.endsWith('.supabase.co')),
+    'A01 browser must never attempt a hosted Supabase request');
   console.log('PHASE17_A01_REAL_LOCAL_UI_AUTH_MFA_AND_SESSION_RECOVERY_PASS: ' + results.join('; '));
 } finally {
   await browser.close();

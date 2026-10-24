@@ -76,6 +76,8 @@ sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
 ('complaints.publish', 'complaints', 'publish', 'Synthetic Publish', 'প্রকাশ পরীক্ষা'),
 ('complaints.unpublish', 'complaints', 'unpublish', 'Synthetic Unpublish', 'অপ্রকাশ পরীক্ষা'),
 ('complaints.reject', 'complaints', 'reject', 'Synthetic Reject', 'বাতিল পরীক্ষা'),
+('categories.view', 'categories', 'view', 'Synthetic Taxonomy View', 'শ্রেণিবিন্যাস দেখা'),
+('categories.manage', 'categories', 'manage', 'Synthetic Taxonomy Manage', 'শ্রেণিবিন্যাস পরিচালনা'),
 ('responses.view', 'responses', 'view', 'Synthetic Response View', 'প্রতিক্রিয়া দেখা'),
 ('responses.resubmit', 'responses', 'resubmit', 'Synthetic Response Resubmit', 'পুনরায় পর্যালোচনা'),
 ('responses.publish', 'responses', 'publish', 'Synthetic Response Publish', 'প্রতিক্রিয়া প্রকাশ'),
@@ -101,7 +103,7 @@ sql(`INSERT INTO public.roles(id, name_en, name_bn, active, is_system)
   VALUES ('${roleId}', 'Synthetic Moderation Role', 'পরীক্ষামূলক মডারেটর', true, false)`);
 sql(`INSERT INTO public.role_permissions(role_id, permission_id)
   SELECT '${roleId}', id FROM public.permissions WHERE id IN (
-    'dashboard.view','complaints.view','complaints.publish','complaints.unpublish','complaints.reject',
+    'dashboard.view','categories.view','categories.manage','complaints.view','complaints.publish','complaints.unpublish','complaints.reject',
     'responses.view','responses.resubmit','responses.publish','responses.reject','responses.unpublish')`);
 sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
 
@@ -283,6 +285,13 @@ await runPhase17A04({
     }
   },
   getSourcedCount: () => Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")),
+  a08SubcategoryId: `a08_${suffix.toLowerCase()}`,
+  readA08TaxonomyRow: id => {
+    const raw = sql(`SELECT COALESCE((SELECT row_to_json(r)::text FROM
+      (SELECT id, segment_id, name_en, name_bn, sort_order, active
+       FROM public.subcategories WHERE id = '${id}') r), 'null')`);
+    return JSON.parse(raw);
+  },
   responseParent,
   responseUiPublish,
   responseUiReject,

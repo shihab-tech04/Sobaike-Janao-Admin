@@ -50,7 +50,8 @@ const user = unwrap(await root.auth.admin.createUser({ email, password, email_co
 assert.ok(user.id);
 sql(`INSERT INTO public.permissions(id,module,action,name_en,name_bn) VALUES
 ('categories.view','categories','view','Synthetic category read','বিভাগ দেখা'),
-('categories.manage','categories','manage','Synthetic category edit','বিভাগ সম্পাদনা')`);
+('categories.manage','categories','manage','Synthetic category edit','বিভাগ সম্পাদনা')
+ ON CONFLICT (id) DO NOTHING`);
 sql(`INSERT INTO public.admin_users(user_id,active,is_super_admin,display_name)
   VALUES ('${user.id}',true,false,'Synthetic form reviewer')`);
 sql(`INSERT INTO public.roles(id,name_en,name_bn,active,is_system)

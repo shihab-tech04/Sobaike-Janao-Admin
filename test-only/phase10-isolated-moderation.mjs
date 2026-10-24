@@ -259,6 +259,36 @@ const afterRestore = await operator.rpc('has_permission', { p_permission_id: 'co
 assert.ifError(afterRestore.error);
 assert.equal(afterRestore.data, true, 'Restored synthetic role should regain publish permission');
 
+// A10: seven fully fictional banner rows, inserted only AFTER the earlier
+// A08/A09 workflows have finished. No hosted banner content is ever copied.
+const a10Keys=['harassment','load_shedding','extortion','public_safety',
+  'road_transport','illegal_occupation','rickshaw'];
+function seedA10Banners() {
+  for (const [index, key] of a10Keys.entries()) {
+    const contents={
+      titleBn:'পরীক্ষামূলক ব্যানার '+(index+1),
+      titleEn:'A10 synthetic banner '+(index+1),
+      mobileDescriptionBn:'ক'.repeat(60),
+      tabletDescriptionBn:'খ'.repeat(60),
+      desktopDescriptionBn:'গ'.repeat(60),
+      mobileDescriptionEn:'E'.repeat(62),
+      tabletDescriptionEn:'T'.repeat(62),
+      desktopDescriptionEn:'D'.repeat(62),
+      illustrationSrc:'/illustrations/services/a10-synthetic-banner.jpg',
+      primaryCtaBn:'প্রতিবেদন করুন', primaryCtaEn:'Report now',
+      isActive:true, showOnHome:true, sortOrder:index+1,
+    };
+    const json=JSON.stringify(contents).replaceAll("'","''");
+    sql(`INSERT INTO public.site_banners(category_key,draft_content,published_content)
+      VALUES ('${key}','${json}'::jsonb,'${json}'::jsonb)`);
+  }
+  sql(`UPDATE public.segments SET config_status='published'
+    WHERE id IN ('harassment','load_shedding','extortion','public_safety',
+      'road_transport','illegal_occupation','rickshaw')`);
+  sql(`INSERT INTO public.role_permissions(role_id,permission_id)
+    VALUES ('${roleId}','banners.manage') ON CONFLICT DO NOTHING`);
+}
+
 // A04: exercise actual React moderation action dialogs and Supabase API through
 // Chromium with a delegated AAL2 moderator, only against disposable loopback.
 await runPhase17A04({
@@ -292,6 +322,16 @@ await runPhase17A04({
        FROM public.subcategories WHERE id = '${id}') r), 'null')`);
     return JSON.parse(raw);
   },
+  seedA10Banners,
+  readA10Banner: id => {
+    assert.ok(a10Keys.includes(id));
+    return JSON.parse(sql(`SELECT row_to_json(b)::text FROM
+      (SELECT category_key,draft_content,published_content,version
+       FROM public.site_banners WHERE category_key='${id}') b`));
+  },
+  countA10Banners: () => Number(sql('SELECT count(*) FROM public.site_banners')),
+  countPublicA10Banners: () => Number(sql('SELECT count(*) FROM public.get_public_site_banners()')),
+  authorizedClient: operator,
   readA09Form: async id => {
     assert.match(id, /^a08_[a-f0-9]{8}$/);
     const result = await operator.rpc('admin_get_reporting_form', {p_subcategory_id:id});

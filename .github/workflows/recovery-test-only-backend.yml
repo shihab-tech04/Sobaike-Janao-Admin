@@ -215,7 +215,9 @@ jobs:
           RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
         run: node test-only/phase17-a01-authenticated-browser.mjs
 
-      - name: Verify synthetic complaint and response moderation through Public SQL reads
+      - name: Verify A04 Chromium moderation and synthetic complaint/response Public SQL parity
+        env:
+          RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
         run: node test-only/phase10-isolated-moderation.mjs
 
       - name: Verify bilingual form builder and taxonomy parity in Admin, Public, and News Intake

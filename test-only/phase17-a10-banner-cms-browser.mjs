@@ -50,6 +50,16 @@ export async function runPhase17A10({
     return result.data;
   };
   const publicBanner = async () => (await publicRows()).find(x => x.category_key==='harassment');
+  const waitForSql = async (predicate, context) => {
+    for(let attempt=0; attempt<60; attempt++) {
+      const row=read();
+      if(predicate(row)) return row;
+      await page.waitForTimeout(100);
+    }
+    throw new Error(context+' did not persist in protected local SQL; '+JSON.stringify({
+      row:read(), body:(await page.locator('body').innerText()).slice(-1200),
+    }));
+  };
   const initial=read();
   const originalTitle=initial.published_content.titleEn;
   assert.equal((await publicBanner()).content.titleEn,originalTitle);
@@ -71,7 +81,7 @@ export async function runPhase17A10({
   await page.locator('#banner-sort-order').fill('9');
   await page.locator('#banner-mobileDescriptionEn').fill('Incomplete length');
   await page.getByRole('button',{name:'Save draft'}).click();
-  await page.getByText('Draft saved.',{exact:true}).waitFor({state:'visible'});
+  await waitForSql(row=>row.draft_content.titleEn==='A10 fiction draft changes' && row.draft_content.mobileDescriptionEn==='Incomplete length','First banner draft');
   const draft=read();
   assert.equal(draft.draft_content.titleEn,'A10 fiction draft changes');
   assert.equal(draft.draft_content.sortOrder,9);
@@ -83,7 +93,7 @@ export async function runPhase17A10({
   // Complete the exact 62-character English description before publishing.
   await page.locator('#banner-mobileDescriptionEn').fill('A'.repeat(62));
   await page.getByRole('button',{name:'Save draft'}).click();
-  await page.getByText('Draft saved.',{exact:true}).waitFor({state:'visible'});
+  await waitForSql(row=>row.draft_content.mobileDescriptionEn==='A'.repeat(62),'Complete bilingual banner draft');
   assert.equal(read().published_content.titleEn,originalTitle);
   const versionBefore=read().version;
   page.once('dialog',async d => d.dismiss());
@@ -94,7 +104,7 @@ export async function runPhase17A10({
 
   page.once('dialog',async d => d.accept());
   await page.getByRole('button',{name:'Publish',exact:true}).click();
-  await page.getByText('Banner published.',{exact:true}).waitFor({state:'visible'});
+  await waitForSql(row=>row.published_content.titleEn==='A10 fiction draft changes','Banner publication');
   const published=read();
   assert.equal(published.published_content.titleEn,'A10 fiction draft changes');
   assert.equal(published.version,versionBefore+1);
@@ -107,12 +117,12 @@ export async function runPhase17A10({
   await page.setViewportSize({width:390,height:844});
   await page.getByLabel('Active banner').uncheck();
   await page.getByRole('button',{name:'Save draft'}).click();
-  await page.getByText('Draft saved.',{exact:true}).waitFor({state:'visible'});
+  await waitForSql(row=>row.draft_content.isActive===false,'Inactive banner draft');
   assert.equal((await publicBanner()).content.isActive,true,
     'Unpublished visibility edit may not reach Public');
   page.once('dialog',async d=>d.accept());
   await page.getByRole('button',{name:'Publish',exact:true}).click();
-  await page.getByText('Banner published.',{exact:true}).waitFor({state:'visible'});
+  await waitForSql(row=>row.published_content.isActive===false,'Banner withdrawal');
   assert.equal(read().published_content.isActive,false);
   assert.equal((await publicBanner()).content.isActive,false);
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);

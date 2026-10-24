@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 
@@ -147,4 +149,17 @@ const revoked = await session.rpc('has_permission', { p_permission_id: 'roles.ma
 assert.ifError(revoked.error);
 assert.equal(revoked.data, false, 'Revoked session must immediately lose database permission');
 
+// Carry only disposable synthetic credentials to the *same ephemeral job's*
+// A01 Chromium test. Never upload the file, echo the values or use hosted Auth.
+if (process.env.RECOVERY_A01_FIXTURE_PATH) {
+  const runner = resolve(process.env.RUNNER_TEMP || '');
+  const file = resolve(process.env.RECOVERY_A01_FIXTURE_PATH);
+  assert.ok(file.startsWith(runner + sep), 'A01 fixture must remain in runner temp');
+  writeFileSync(file, JSON.stringify({
+    outsiderEmail: outsider.email,
+    adminEmail: operator.email,
+    password,
+    totpSecret: enroll.data.totp.secret,
+  }), { mode: 0o600 });
+}
 console.log('PHASE09_ISOLATED_AUTH_TOTP_RBAC_REVOCATION_PASS');

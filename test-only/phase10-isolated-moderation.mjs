@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { runPhase17A04 } from './phase17-a04-moderation-browser.mjs';
 
 const api = process.env.RECOVERY_LOCAL_API_URL;
 const db = process.env.RECOVERY_LOCAL_DB_URL;
@@ -21,6 +22,8 @@ const suffix = randomUUID().slice(0, 8);
 const password = `Isolated-${randomUUID()}!Mfa`;
 const reportA = `SYNTH-MOD-${suffix.toUpperCase()}`;
 const reportB = `SYNTH-REJ-${suffix.toUpperCase()}`;
+const uiPublished = `SYNTH-UIPUB-${suffix.toUpperCase()}`;
+const uiRejected = `SYNTH-UIREJ-${suffix.toUpperCase()}`;
 const responseA = `SYNTH-RSP-${suffix.toUpperCase()}`;
 const responseB = `SYNTH-RRJ-${suffix.toUpperCase()}`;
 // Realistic but invented reporter location; never load real reporter telemetry.
@@ -66,6 +69,7 @@ assert.match(userId || '', /^[0-9a-f-]{36}$/i);
 // A metadata-only snapshot intentionally has zero permission definitions.
 // Populate exclusively synthetic rows in this disposable localhost DB.
 sql(`INSERT INTO public.permissions(id, module, action, name_en, name_bn) VALUES
+('complaints.view', 'complaints', 'view', 'Synthetic View', 'অভিযোগ দেখা'),
 ('complaints.publish', 'complaints', 'publish', 'Synthetic Publish', 'প্রকাশ পরীক্ষা'),
 ('complaints.unpublish', 'complaints', 'unpublish', 'Synthetic Unpublish', 'অপ্রকাশ পরীক্ষা'),
 ('complaints.reject', 'complaints', 'reject', 'Synthetic Reject', 'বাতিল পরীক্ষা'),
@@ -88,7 +92,7 @@ sql(`INSERT INTO public.roles(id, name_en, name_bn, active, is_system)
   VALUES ('${roleId}', 'Synthetic Moderation Role', 'পরীক্ষামূলক মডারেটর', true, false)`);
 sql(`INSERT INTO public.role_permissions(role_id, permission_id)
   SELECT '${roleId}', id FROM public.permissions WHERE id IN (
-    'complaints.publish','complaints.unpublish','complaints.reject',
+    'complaints.view','complaints.publish','complaints.unpublish','complaints.reject',
     'responses.publish','responses.reject','responses.unpublish')`);
 sql(`INSERT INTO public.user_roles(user_id, role_id) VALUES ('${userId}', '${roleId}')`);
 
@@ -109,7 +113,7 @@ sql(`INSERT INTO public.admin_notification_event_catalogue(
 // Existing synthetic taxonomy fixture defines public_safety. No real data is copied.
 sql(`INSERT INTO public.subcategories(id, segment_id, name_en, name_bn, active, sort_order)
   VALUES ('synthetic-public-safety', 'public_safety', 'Controlled synthetic safety', 'পরীক্ষামূলক নিরাপত্তা', true, 1)`);
-for (const id of [reportA, reportB]) {
+for (const id of [reportA, reportB, uiPublished, uiRejected]) {
   sql(`INSERT INTO public.complaints(
     id, segment_id, subcategory_id, title, title_en, description, description_en,
     incident_date, privacy_choice, division, district, status, origin_type,
@@ -222,6 +226,20 @@ const afterRestore = await operator.rpc('has_permission', { p_permission_id: 'co
 assert.ifError(afterRestore.error);
 assert.equal(afterRestore.data, true, 'Restored synthetic role should regain publish permission');
 
+// A04: exercise actual React moderation action dialogs and Supabase API through
+// Chromium with a delegated AAL2 moderator, only against disposable loopback.
+await runPhase17A04({
+  apiUrl: api,
+  browserBaseUrl: process.env.RECOVERY_BROWSER_BASE_URL,
+  email, password,
+  totpSecret: enroll.data.totp.secret,
+  publishId: uiPublished, rejectId: uiRejected,
+  readStatus: id => sql(`SELECT status FROM public.complaints WHERE id = '${id}'`),
+  publicClient,
+});
+const uiAuditCount = Number(sql(`SELECT count(*) FROM public.admin_audit_logs
+  WHERE target_id IN ('${uiPublished}', '${uiRejected}')`));
+assert.ok(uiAuditCount >= 3, 'UI moderation transitions must create auditable events');
 const published = await operator.rpc('admin_publish_complaint', { p_complaint_id: reportA });
 assert.ifError(published.error);
 assert.equal(sql(`SELECT status FROM public.complaints WHERE id = '${reportA}'`), 'published');

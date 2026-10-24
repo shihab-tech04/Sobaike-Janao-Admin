@@ -43,6 +43,11 @@ export async function runPhase17A03({ page, browserBaseUrl, inspectionId, otherI
 
   await goto('/complaints');
   await search.waitFor({ state: 'visible' });
+  // Returning from the detail route mounts a fresh queue with default All.
+  // Select Submitted again to test that Reset Filters preserves a *current*
+  // active status selection within this queue instance.
+  await submitted.click();
+  assert.equal(await submitted.getAttribute('aria-selected'), 'true');
   await search.fill('PHASE17-A03-UNMATCHED-8D724F');
   await page.getByText('No Matching Complaints Found').first().waitFor({ state: 'visible' });
   await search.fill('');

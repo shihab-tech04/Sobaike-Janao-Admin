@@ -106,6 +106,9 @@ export async function runPhase17A10({
   assert.ok(overflow<=1,'Mobile Banner CMS overflow: '+overflow);
   await page.reload({waitUntil:'domcontentloaded'});
   await page.getByRole('heading',{name:'Banner CMS',exact:true}).waitFor({state:'visible'});
+  // Saved sortOrder moves the synthetic banner to the end of the chooser.
+  // Re-select it explicitly after reload instead of assuming first-row identity.
+  await page.getByRole('button',{name:/A10 fiction draft changes/}).click();
   assert.equal(await page.getByLabel('Active banner').isChecked(),false);
   assert.equal((await publicBanner()).content.isActive,false);
   console.log('PHASE17_A10_MOBILE_WITHDRAWAL_RELOAD_AND_PUBLIC_STATE_PASS');

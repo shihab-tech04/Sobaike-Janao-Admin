@@ -25,7 +25,10 @@ export async function runPhase17A10({
   await page.setViewportSize({width:1280,height:850});
   await goto('/banners');
   await page.getByRole('heading',{name:'Banner CMS',exact:true}).waitFor({state:'visible'});
-  assert.equal(await page.getByRole('button',{name:/v1$/}).count(),7,'Seven banner selection buttons required');
+  await page.locator('#banner-titleEn').waitFor({state:'visible'});
+  await page.getByRole('button',{name:/A10 synthetic banner 1/}).waitFor({state:'visible'});
+  assert.equal(await page.getByRole('button',{name:/A10 synthetic banner [1-7]/}).count(),
+    7,'Seven loaded banner selection buttons required');
   const read = () => readBanner('harassment');
   const publicRows = async () => {
     const result = await publicClient.rpc('get_public_site_banners');

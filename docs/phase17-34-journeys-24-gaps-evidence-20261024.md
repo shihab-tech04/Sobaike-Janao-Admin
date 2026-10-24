@@ -2,7 +2,7 @@
 
 **Release verdict: HOLD — 0/34 complete hosted/full E2E journeys certified.** This is a deliberately accurate evidence register, not a claim that the 34 journeys have completed. Both websites are **already live**, but Phase 17 cannot be marked complete from isolated tests alone.
 
-**Exact checked production Git heads (2026-10-24):** Public `ffc8a86e2c6b744626f28f826b23b8469da8717c`; Admin `7b53ba1d14e26ca0552d105c560c9f59619709e4`. Live URLs: https://shobaikejanao.com and https://admin.shobaikejanao.com. Replacement production Supabase `eztqgqgpluoqwmprgeas`; original `ahiaymyqfmyyrjkwgvhi` must not be modified.
+**Latest independently recorded canonical release evidence (2026-10-24):** Public `main` `ffc8a86e2c6b744626f28f826b23b8469da8717c` (prior Public smoke); Admin `main` `17f02974c26a7504294c337eeefdc2d2e7cc1b37` (canonical Admin SHA verified by [production smoke 40071093261](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40071093261)). The new head differs from the former `7b53ba1d` checkpoint. Live URLs: https://shobaikejanao.com and https://admin.shobaikejanao.com. Replacement production Supabase `eztqgqgpluoqwmprgeas`; original `ahiaymyqfmyyrjkwgvhi` must not be modified.
 
 **Read-only hosted database observation (2026-10-24):** 195 complaints, 169 published, 7 linked responses, 7 active categories, 27 active subcategories, 28 published form schemas (one references inactive `bribe-paid`; do not silently alter), 7 published banners, 8 divisions / 64 districts / 601 upazilas, one active Supreme Super Admin and one verified TOTP factor.
 
@@ -30,7 +30,7 @@
 | A05 | Evidence and privacy-sensitive inspection | Isolated permissions and reporter GPS deny; hosted private-evidence inspection missing | NOT CERTIFIED |
 | A06 | News Intake manual scan, partial failures and review | Real browser synthetic response handling 40061928667; real hosted provider publication missing | NOT CERTIFIED |
 | A07 | Response approve/reject/withdraw/resubmit | Real isolated SQL→Public Chromium 40063364897; hosted signed-in write path missing | NOT CERTIFIED |
-| A08 | Category/subcategory lifecycle | Isolated taxonomy/form backend Phase11; complete live Admin CMS journey missing | NOT CERTIFIED |
+| A08 | Category/subcategory lifecycle | [PR #20](https://github.com/shihab-tech04/Sobaike-Janao-Admin/pull/20) merged: genuine disposable SQL + delegated AAL2 React browser [40070703082](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40070703082) PASS for invalid ID denial, inactive draft create, bilingual edit/reorder, protected draft privacy, server-side incomplete-publication denial, 390px mobile search. **Required publish/deactivate → Public composer and hosted signed-in E2E remain unverified** | NOT CERTIFIED |
 | A09 | Dynamic form/schema lifecycle | Isolated Form Builder Phase11; protected draft→publish→Public composer missing | NOT CERTIFIED |
 | A10 | Banner draft/edit/publish/withdraw | Seven-banner isolated UI fixtures; hosted authenticated CMS transaction missing | NOT CERTIFIED |
 | A11 | Admin map monitoring | Route implementation present; authenticated map workflow unverified | NOT CERTIFIED |
@@ -53,7 +53,7 @@
 
 | Historical gap | Original accepted concern | October 24 classification | Evidence/remaining action |
 |---|---|---|---|
-| GAP-01 | Seven category taxonomy | PARTIAL | 7 active categories hosted; accepted order and dynamic fallback need current UI check |
+| GAP-01 | Seven category taxonomy | PARTIAL | 7 active hosted; A08 isolated draft/edit/private visibility and fail-closed publish gate passed ([PR #20](https://github.com/shihab-tech04/Sobaike-Janao-Admin/pull/20)); completed publish→Public form, accepted order and dynamic fallback still require hosted journey |
 | GAP-02 | News Intake complete workflow | PARTIAL | A06/Phase12 synthetic scan, duplicate and failure checks; hosted source-review-publish open |
 | GAP-03 | Seven-banner Admin CMS | PARTIAL | 7 hosted published banners; protected draft/publish/withdraw still open |
 | GAP-04 | Admin System Health | PARTIAL | Current Admin route exists; permission/view/recovery signed-in unverified |
@@ -97,3 +97,12 @@
 - [Public original 34 journey register](https://github.com/shihab-tech04/Sobaike-janao-public/blob/main/docs/phase17-original-34-journey-acceptance.md), [historical September 22 stakeholder handoff](https://docs.google.com/document/d/1uwYEkH9LEQ-RDBSHc4AtZtmF1IafHW4aWpa8vlOxU-g/edit).
 
 **Change scope:** Documentation and non-mutating ledger consistency tests only. No app implementations, migrations, Auth, production records, UI design, Nadia or unrelated projects changed.
+
+## 2026-10-24 — A08 post-merge readback (non-mutating)
+
+- Admin protected main is `17f02974c26a7504294c337eeefdc2d2e7cc1b37`, merged [PR #20](https://github.com/shihab-tech04/Sobaike-Janao-Admin/pull/20); Public main remains `ffc8a86e2c6b744626f28f826b23b8469da8717c`. A08 genuine isolated browser+SQL backend candidate [40070703082](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40070703082) succeeded. This **advances isolated A08 evidence only**; all 34 original hosted/full E2E rows remain NOT CERTIFIED.
+- Admin post-merge deploy [40071029412](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40071029412), canonical domain smoke [40071093261](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40071093261), and 22-route mobile/desktop signed-out protections [40071105065](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40071105065) all have successful GitHub Actions job conclusions; canonical smoke verifies Admin manifest `17f02974c26a7504294c337eeefdc2d2e7cc1b37`. Signed-out browser checks do not constitute Super Admin AAL2 browser testing.
+- Verified existing off-GitHub [Drive PR20 candidate archive](https://drive.google.com/file/d/1rz_pPN_XSzylMigA-Y9d9S59aqNckyUs/view) metadata: 3,637,380-byte ZIP, with successful [restore/checksum run 40070718670](https://github.com/shihab-tech04/Sobaike-Janao-Admin/actions/runs/40070718670). **This is a pre-merge archive for PR head `131b4b0...`, not a newly verified archive containing the post-merge `17f02974...` commit**. Recreate and independently restore the exact current release heads before the next production modification.
+- Hosted replacement Supabase `eztqgqgpluoqwmprgeas` observed ACTIVE_HEALTHY and unchanged aggregate table counts: 195 complaints / 169 published, 7 responses, 7 segments, 7 banners, 8 divisions / 64 districts / 601 upazilas, 441 audit events. Read-only `pg_proc` grant inspection found no anonymous EXECUTE on the inspected `admin_*` functions; this is not an authenticated role-negative test or exhaustive RLS certification.
+- Current regular-chat Browser connection allows only tab list/read; no controllable hosted Admin signed-in session or real email/TOTP action. Web-host fetch was disabled. Prior canonical smoke is cited as recorded CI evidence, not asserted to be independently reproduced here.
+- Historical gaps remain **19 PARTIAL / 2 CONFLICT / 3 OPEN / 0 certified FIXED**. GAP-18 draft persistence and GAP-19 IP/GPS consent are preserved unresolved. Current citizen reports, private evidence and original Supabase `ahiaymyqfmyyrjkwgvhi` were not touched. Do not merge this documentation update or mark Phase 17 complete from isolated evidence.

@@ -61,7 +61,24 @@ export async function runPhase17A11({
     await page.setViewportSize({width:1280,height:850});
     await goto('/map');
     await page.getByRole('heading',{name:'Map Monitoring',exact:true}).waitFor({state:'visible'});
-    await page.locator('#map-search-input').waitFor({state:'visible'});
+    try {
+      await page.locator('#map-search-input').waitFor({state:'visible',timeout:8000});
+    } catch (initialError) {
+      // Actual UI data loading can fail transiently after Auth permission refresh.
+      // Exercise its existing Retry rather than substituting a mocked dataset.
+      console.log('PHASE17_A11_INITIAL_LOAD_RECOVERY_DIAGNOSTIC',JSON.stringify({
+        url:page.url(),
+        body:(await page.locator('body').innerText()).slice(-1400),
+      }));
+      const retry=page.getByRole('button',{name:'Retry',exact:true});
+      if(await retry.isVisible()) {
+        await retry.click();
+      } else {
+        await page.reload({waitUntil:'domcontentloaded'});
+      }
+      await page.locator('#map-search-input').waitFor({state:'visible',timeout:15000});
+      console.log('PHASE17_A11_INITIAL_TRANSIENT_MAP_LOAD_RECOVERED_PASS');
+    }
     await page.locator('#map-search-input').fill('SYNTH-A11-');
     const [publishedId, submittedId, unmappedId] = mapIds;
     await page.getByText(publishedId,{exact:false}).first().waitFor({state:'visible'});

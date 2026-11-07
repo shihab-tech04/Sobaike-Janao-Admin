@@ -137,9 +137,15 @@ try {
   assert.deepEqual(reporterRequests,[],'A11 delegated map browser requested private GPS');
   assert.ok(![...unexpectedExternal].some(h=>h.endsWith('.supabase.co')),
     'A11 attempted to contact hosted Supabase');
-  assert.deepEqual([...unexpectedExternal].filter(h=>
-    !['fonts.googleapis.com','fonts.gstatic.com'].includes(h)),[],
-    'A11 attempted unapproved external requests');
+  // The earlier signed-out redirect may attempt OSM tile loads before the
+  // map-specific transparent fixture is installed; the catch-all network guard
+  // aborts those requests. Count them as blocked, not successful egress.
+  const expectedBlockedHosts=new Set([
+    'fonts.googleapis.com','fonts.gstatic.com',
+    'a.tile.openstreetmap.org','b.tile.openstreetmap.org','c.tile.openstreetmap.org',
+  ]);
+  assert.deepEqual([...unexpectedExternal].filter(h=>!expectedBlockedHosts.has(h)),[],
+    'A11 attempted an unexpected non-loopback external request');
   console.log('PHASE17_A11_REAL_LOCAL_UI_MAP_SQL_PRIVACY_FILTER_REFRESH_MOBILE_PASS');
 } finally {
   await ctx?.close();

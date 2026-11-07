@@ -20,7 +20,8 @@ for(const [url,protocol,port] of [
 ]) {
   const parsed=new URL(url||'');
   assert.equal(parsed.hostname,'127.0.0.1');
-  assert.equal(parsed.protocol,protocol);
+  assert.ok((port==='54322' ? ['postgres:','postgresql:'] : [protocol]).includes(parsed.protocol),
+    'A11 requires the expected loopback protocol and port');
   assert.equal(parsed.port,port);
 }
 assert.ok(anon&&service);

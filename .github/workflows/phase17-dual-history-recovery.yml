@@ -1,0 +1,66 @@
+name: Phase17 Independent Dual-Repo Recovery Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-history-recovery:
+    name: Archive, checksum and independently restore Public and Admin source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Independently verify exact Git heads and create restorable bundles
+        shell: bash
+        env:
+          EXPECTED_ADMIN: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_PUBLIC: ffc8a86e2c6b744626f28f826b23b8469da8717c
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_ADMIN"
+          mkdir -p "$RUNNER_TEMP/sobaike-recovery/src" "$RUNNER_TEMP/sobaike-recovery/restore"
+          cd "$RUNNER_TEMP/sobaike-recovery/src"
+          git clone --mirror https://github.com/shihab-tech04/Sobaike-Janao-Admin.git admin.git
+          git clone --mirror https://github.com/shihab-tech04/Sobaike-janao-public.git public.git
+          git -C admin.git cat-file -e "$EXPECTED_ADMIN^{commit}"
+          test "$(git -C public.git rev-parse refs/heads/main)" = "$EXPECTED_PUBLIC"
+          git -C admin.git fsck --full --strict
+          git -C public.git fsck --full --strict
+          git -C admin.git bundle create "$RUNNER_TEMP/sobaike-recovery/admin-history.bundle" --all
+          git -C public.git bundle create "$RUNNER_TEMP/sobaike-recovery/public-history.bundle" --all
+          cd "$RUNNER_TEMP/sobaike-recovery"
+          sha256sum admin-history.bundle public-history.bundle > SHA256SUMS
+          printf 'Admin candidate SHA: %s\nPublic production SHA: %s\n' "$EXPECTED_ADMIN" "$EXPECTED_PUBLIC" > MANIFEST.txt
+          git clone --mirror admin-history.bundle restore/admin.git
+          git clone --mirror public-history.bundle restore/public.git
+          git -C restore/admin.git fsck --full --strict
+          git -C restore/public.git fsck --full --strict
+          git -C restore/admin.git cat-file -e "$EXPECTED_ADMIN^{commit}"
+          test "$(git -C restore/public.git rev-parse refs/heads/main)" = "$EXPECTED_PUBLIC"
+          test "$(git -C restore/admin.git rev-parse "$EXPECTED_ADMIN^{tree}")" = "$(git -C src/admin.git rev-parse "$EXPECTED_ADMIN^{tree}")"
+          test "$(git -C restore/public.git rev-parse "$EXPECTED_PUBLIC^{tree}")" = "$(git -C src/public.git rev-parse "$EXPECTED_PUBLIC^{tree}")"
+          sha256sum --check SHA256SUMS
+          zip -q -j -9 "$RUNNER_TEMP/sobaike-phase17-dual-source.zip" admin-history.bundle public-history.bundle SHA256SUMS MANIFEST.txt
+          unzip -t "$RUNNER_TEMP/sobaike-phase17-dual-source.zip"
+          sha256sum "$RUNNER_TEMP/sobaike-phase17-dual-source.zip" | tee "$RUNNER_TEMP/sobaike-phase17-dual-source.sha256"
+          echo 'PHASE17_DUAL_HISTORY_BUNDLE_RESTORE_SHA256_PASS'
+
+      - name: Retain independently restorable archive for off-GitHub handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: sobaike-phase17-dual-restore-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/sobaike-phase17-dual-source.zip
+            ${{ runner.temp }}/sobaike-phase17-dual-source.sha256
+          if-no-files-found: error
+          retention-days: 30

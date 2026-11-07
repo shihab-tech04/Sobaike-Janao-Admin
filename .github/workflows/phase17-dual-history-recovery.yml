@@ -36,8 +36,8 @@ jobs:
           test "$(git -C public.git rev-parse refs/heads/main)" = "$EXPECTED_PUBLIC"
           git -C admin.git fsck --full --strict
           git -C public.git fsck --full --strict
-          git -C admin.git bundle create ../admin-history.bundle --all
-          git -C public.git bundle create ../public-history.bundle --all
+          git -C admin.git bundle create "$RUNNER_TEMP/sobaike-recovery/admin-history.bundle" --all
+          git -C public.git bundle create "$RUNNER_TEMP/sobaike-recovery/public-history.bundle" --all
           cd "$RUNNER_TEMP/sobaike-recovery"
           sha256sum admin-history.bundle public-history.bundle > SHA256SUMS
           printf 'Admin candidate SHA: %s\nPublic production SHA: %s\n' "$EXPECTED_ADMIN" "$EXPECTED_PUBLIC" > MANIFEST.txt

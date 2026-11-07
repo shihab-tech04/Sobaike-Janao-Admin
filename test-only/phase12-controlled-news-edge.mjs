@@ -131,17 +131,35 @@ const firstRows = sql(`SELECT action||':'||coalesce(duplicate_status,'none')||':
   CASE WHEN review_payload IS NULL THEN 'no_payload' ELSE 'payload' END||' — '||coalesce(reason,'')
   FROM public.news_intake_run_items WHERE run_id='${first.runId}' AND item_kind='article'
   ORDER BY created_at`);
-assert.match(firstRows, /created_draft:clear:payload/,
-  `controlled final article did not become a complete private review candidate: ${firstRows || 'no article rows'}`);
-assert.equal(Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")), 0,
-  'automatic and manual scans must not create or publish sourced reports');
-
-const second = await edgeCall('news-intake-scan', {});
-assert.ok(second.runId && second.runId !== first.runId);
-const secondRows = sql(`SELECT action||':'||coalesce(duplicate_status,'none')
-  FROM public.news_intake_run_items WHERE run_id='${second.runId}' AND item_kind='article'`);
-assert.match(secondRows, /skip_duplicate:exact/, 'repeat scan must deduplicate the existing review candidate');
-assert.equal(Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")), 0);
-assert.ok(Number(sql(`SELECT count(*) FROM public.admin_audit_logs WHERE target_id IN ('${first.runId}','${second.runId}')`)) >= 4);
-
-console.log('PHASE12_CONTROLLED_HTTPS_ARTICLE_EDGE_TO_PRIVATE_REVIEW_AND_CROSS_RUN_DEDUPE_PASS');
+// The externally hosted October 19 fictional article is intentionally
+// immutable. On later dates it correctly expires from the genuine seven-day
+// News Intake window. Never rewrite its date or weaken production validation.
+const ageInMs=Date.now()-Date.parse(preview.sourcePublishedDate+'T00:00:00Z');
+assert.ok(Number.isFinite(ageInMs));
+const withinWindow=ageInMs>=0 && ageInMs<7*24*60*60*1000;
+if(withinWindow) {
+  assert.match(firstRows,/created_draft:clear:payload/,
+    'Fresh controlled article must become a complete private review candidate');
+  assert.equal(Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")),0,
+    'Manual/automatic scans must not create or publish sourced reports');
+  const second=await edgeCall('news-intake-scan',{});
+  assert.ok(second.runId && second.runId!==first.runId);
+  const secondRows=sql("SELECT action||':'||coalesce(duplicate_status,'none') "+
+    "FROM public.news_intake_run_items WHERE run_id='"+second.runId+"' AND item_kind='article'");
+  assert.match(secondRows,/skip_duplicate:exact/,'Repeat scan must deduplicate the fresh candidate');
+  assert.equal(Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")),0);
+  assert.ok(Number(sql("SELECT count(*) FROM public.admin_audit_logs WHERE target_id IN ('"+
+    first.runId+"','"+second.runId+"')"))>=4);
+  console.log('PHASE12_CONTROLLED_HTTPS_ARTICLE_EDGE_TO_PRIVATE_REVIEW_AND_CROSS_RUN_DEDUPE_PASS');
+} else {
+  assert.ok(ageInMs>=7*24*60*60*1000,
+    'Unexpected future-date or ineligible source status requires investigation');
+  assert.match(firstRows,/discovered:unavailable:payload.*Outside the 7-day automated intake window/i,
+    'Expired controlled article must fail closed with an explicit window reason');
+  assert.equal(Number(sql("SELECT count(*) FROM public.news_intake_run_items WHERE run_id='"+
+    first.runId+"' AND action='created_draft'")),0,
+    'Expired source must not create a review candidate');
+  assert.equal(Number(sql("SELECT count(*) FROM public.complaints WHERE origin_type='sourced_report'")),0,
+    'Expired source must not publish reports');
+  console.log('PHASE12_CONTROLLED_HTTPS_ARTICLE_SEVEN_DAY_EXPIRY_GUARD_PASS');
+}

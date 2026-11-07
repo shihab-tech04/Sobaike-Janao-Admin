@@ -220,6 +220,11 @@ jobs:
           RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
         run: node test-only/phase10-isolated-moderation.mjs
 
+      - name: A11 delegated AAL2 Map Monitoring with fictional local SQL and real Chromium
+        env:
+          RECOVERY_BROWSER_BASE_URL: http://127.0.0.1:4173
+        run: node test-only/phase17-a11-standalone-local-browser.mjs
+
       - name: Verify bilingual form builder and taxonomy parity in Admin, Public, and News Intake
         run: node test-only/phase11-isolated-form-builder.mjs
 

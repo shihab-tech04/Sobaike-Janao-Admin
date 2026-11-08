@@ -41,6 +41,9 @@ export async function runPhase17A12({
 
   let granted=false,seeded=false;
   const grant=(yes)=>{
+    if(yes)exec("INSERT INTO public.permissions(id,module,action,name_en,name_bn) " +
+      "VALUES ('location_activity.view','location_activity','view','Synthetic Location View',"+
+      "'পরীক্ষামূলক লোকেশন ভিউ') ON CONFLICT (id) DO NOTHING");
     if(yes)exec("INSERT INTO public.role_permissions(role_id,permission_id) VALUES ('"+
       roleId+"','location_activity.view') ON CONFLICT DO NOTHING");
     else exec("DELETE FROM public.role_permissions WHERE role_id='"+roleId+

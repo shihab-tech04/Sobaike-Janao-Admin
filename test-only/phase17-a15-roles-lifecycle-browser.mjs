@@ -30,7 +30,22 @@ export async function runPhase17A15({
   console.log('PHASE17_A15_ANON_AND_UNGRANTED_ROLE_RPC_AND_UI_DENIAL_PASS');
 
   let granted=false,seededDangerPermission=false;
+  const seededCatalogue=[];
   try {
+    // The recovered disposable SQL baseline may omit the canonical event
+    // catalogue seed, while its producer RPCs enforce event-key FKs.
+    // Restore those missing LOCAL fixture records, not the server guard.
+    for(const [key,layer,severity] of [
+      ['role.created','administrative_oversight','info'],
+      ['role.updated','administrative_oversight','info'],
+      ['role.permissions_changed','security_privilege','security'],
+    ]) {
+      if(Number(sql('SELECT count(*) FROM public.admin_notification_event_catalogue WHERE event_key='+q(key)))===0) {
+        sql('INSERT INTO public.admin_notification_event_catalogue(event_key,category,default_layer,default_severity,active) VALUES ('+
+          q(key)+",'role',"+q(layer)+','+q(severity)+',true)');
+        seededCatalogue.push(key);
+      }
+    }
     sql("INSERT INTO public.permissions(id,module,action,name_en,name_bn) VALUES "+
       "('roles.manage','roles','manage','Manage Roles','ভূমিকা পরিচালনা') "+
       'ON CONFLICT(id) DO NOTHING');
@@ -135,12 +150,17 @@ export async function runPhase17A15({
     assert.ok(overflow<=1,'Roles list mobile page horizontal overflow: '+overflow);
     console.log('PHASE17_A15_MOBILE_ROLES_LIST_NO_PAGE_OVERFLOW_PASS');
   } finally {
+    // Only the fictional role's notifications may be removed. A13's catalogue
+    // and any pre-existing local rows belong to their own independent tests.
+    sql('DELETE FROM public.admin_notifications WHERE target_type=\'role\' AND target_id='+q(roleSlug));
     sql('DELETE FROM public.role_permissions WHERE role_id='+q(roleSlug));
     sql('DELETE FROM public.roles WHERE id='+q(roleSlug));
     if(granted)sql('DELETE FROM public.role_permissions WHERE role_id='+
       q(roleId)+" AND permission_id='roles.manage'");
     if(seededDangerPermission)sql("DELETE FROM public.permissions WHERE id='admin_users.manage' "+
       "AND NOT EXISTS (SELECT 1 FROM public.role_permissions WHERE permission_id='admin_users.manage')");
+    for(const key of seededCatalogue) sql('DELETE FROM public.admin_notification_event_catalogue WHERE event_key='+
+      q(key)+' AND NOT EXISTS (SELECT 1 FROM public.admin_notifications WHERE event_key='+q(key)+')');
   }
   assert.equal(countRole(),0,'Every synthetic A15 role must be removed');
   const revoked=await authorizedClient.rpc('has_permission',{p_permission_id:'roles.manage'});

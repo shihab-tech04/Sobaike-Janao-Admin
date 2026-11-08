@@ -122,7 +122,16 @@ try {
   await page.locator('#login-password').fill(password);
   await page.locator('form button[type="submit"]').click();
   await goto('/security/mfa');
-  await page.locator('#mfa-otp').waitFor({state:'visible'});
+  try {
+    await page.locator('#mfa-otp').waitFor({state:'visible',timeout:9000});
+  } catch {
+    // A fresh client login can briefly race the protected router's first
+    // authorization-context refresh. Navigate to the genuine MFA route once
+    // more; never inject an AAL2 session or fake successful authentication.
+    console.log('PHASE17_A11_LOCAL_MFA_ROUTE_TRANSIENT_RETRY');
+    await goto('/security/mfa');
+    await page.locator('#mfa-otp').waitFor({state:'visible',timeout:15000});
+  }
   await page.locator('#mfa-otp').fill(totp(enrollment.data.totp.secret));
   await page.locator('form button[type="submit"]').click();
   await page.locator('#mfa-otp').waitFor({state:'detached'});

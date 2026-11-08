@@ -53,8 +53,8 @@ export async function runPhase17A12({
     grant(true);
     granted=true;
     const fixtures=[
-      {id:ids[0],status:'granted',lat:'23.780600',lng:'90.407400',
-       accuracy:'55.00',browser:'Chrome',device:'desktop',when:'now()'},
+      {id:ids[0],status:'granted',lat:'NULL',lng:'NULL',
+       accuracy:'NULL',browser:'Chrome',device:'desktop',when:'now()'},
       {id:ids[1],status:'denied',lat:'NULL',lng:'NULL',
        accuracy:'NULL',browser:'Firefox',device:'mobile',when:'now()'},
       {id:ids[2],status:'prompt',lat:'NULL',lng:'NULL',
@@ -80,7 +80,8 @@ export async function runPhase17A12({
     const grantedRow=rows.data.find(r=>r.visitor_id===ids[0]);
     const deniedRow=rows.data.find(r=>r.visitor_id===ids[1]);
     assert.ok(grantedRow && deniedRow);
-    assert.equal(Number(grantedRow.latitude),23.7806);
+    assert.equal(grantedRow.latitude,null,'Granted sessions still must not persist precise coordinates');
+    assert.equal(grantedRow.longitude,null);
     assert.equal(deniedRow.latitude,null);
     assert.equal(deniedRow.longitude,null);
     console.log('PHASE17_A12_AUTHORIZED_AAL2_SQL_KPIS_AND_CONSENT_GPS_PARITY_PASS');
@@ -113,9 +114,10 @@ export async function runPhase17A12({
     await page.locator('tbody tr').first().click();
     await page.getByText('Session & Location Details',{exact:true}).waitFor({state:'visible'});
     await page.getByText(ids[0]+'-S',{exact:true}).first().waitFor({state:'visible'});
-    await page.getByText('23.780600',{exact:true}).first().waitFor({state:'visible'});
+    assert.equal(await page.getByText('23.780600',{exact:true}).count(),0,
+      'A12 must never disclose persisted GPS, even for a consented synthetic session');
     await page.getByRole('button',{name:'Close',exact:true}).last().click();
-    console.log('PHASE17_A12_GRANTED_LOCATION_DETAIL_ONLY_AUTHORIZED_PASS');
+    console.log('PHASE17_A12_GRANTED_SESSION_DETAIL_WITH_NO_PERSISTED_GPS_PASS');
 
     await statusSelect.selectOption('denied');
     await deviceSelect.selectOption('mobile');

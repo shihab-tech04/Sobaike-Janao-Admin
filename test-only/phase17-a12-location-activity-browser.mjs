@@ -137,7 +137,7 @@ export async function runPhase17A12({
     await page.getByText('Showing 0 of 0 total sessions').waitFor({state:'visible'});
     console.log('PHASE17_A12_COMBINED_PERMISSION_DEVICE_AND_DENIED_LOCATION_PRIVACY_PASS');
 
-    await page.getByRole('button',{name:'Reset Filters',exact:true}).click();
+    await page.getByRole('button',{name:'Reset Filters',exact:true}).first().click();
     await page.getByText('Showing 3 of 3 total sessions').waitFor({state:'visible'});
     await timeSelect.selectOption('24h');
     await page.getByText('Showing 2 of 2 total sessions').waitFor({state:'visible'});
@@ -149,7 +149,7 @@ export async function runPhase17A12({
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-
       document.documentElement.clientWidth);
     assert.ok(overflow<=1,'A12 mobile horizontal overflow '+overflow);
-    await page.getByRole('button',{name:'View',exact:true}).first().click();
+    await page.getByRole('button',{name:'View Details',exact:true}).first().click();
     await page.getByText('Session & Location Details',{exact:true}).waitFor({state:'visible'});
     await page.getByRole('button',{name:'Close',exact:true}).last().click();
     console.log('PHASE17_A12_MOBILE_CARD_DRAWER_NO_OVERFLOW_PASS');

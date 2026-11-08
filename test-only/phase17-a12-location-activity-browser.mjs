@@ -104,6 +104,8 @@ export async function runPhase17A12({
     }
     await search.fill(prefix);
     await page.getByText('Showing 3 of 3 total sessions').waitFor({state:'visible'});
+    await page.waitForFunction(()=>document.querySelectorAll('tbody tr').length===3,
+      {timeout:12000});
     assert.equal(await page.locator('tbody tr').count(),3);
     console.log('PHASE17_A12_REAL_DESKTOP_SEARCH_AND_SQL_PAGINATION_PASS');
 
@@ -112,6 +114,8 @@ export async function runPhase17A12({
     const timeSelect=page.locator('select:has(option[value="24h"])');
     await statusSelect.selectOption('granted');
     await page.getByText('Showing 1 of 1 total sessions').waitFor({state:'visible'});
+    await page.waitForFunction(()=>document.querySelectorAll('tbody tr').length===1,
+      {timeout:12000});
     assert.equal(await page.locator('tbody tr').count(),1);
     await page.locator('tbody tr').first().click();
     await page.getByText('Session & Location Details',{exact:true}).waitFor({state:'visible'});

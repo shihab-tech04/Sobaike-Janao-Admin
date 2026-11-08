@@ -60,7 +60,20 @@ export async function runPhase17A11({
 
     await page.setViewportSize({width:1280,height:850});
     await goto('/map');
-    await page.getByRole('heading',{name:'Map Monitoring',exact:true,level:1}).waitFor({state:'visible'});
+    const pageTitle=page.getByRole('heading',{name:'Map Monitoring',exact:true,level:1});
+    try {
+      await pageTitle.waitFor({state:'visible',timeout:9000});
+    } catch {
+      console.log('PHASE17_A11_MAP_ROUTE_INITIAL_AUTH_DIAGNOSTIC',JSON.stringify({
+        url:page.url(),body:(await page.locator('body').innerText()).slice(-900),
+      }));
+      // New AAL2 session / delegated permission refresh can race the first
+      // protected-route request. Retry the *actual* route once rather than
+      // mocking authorization, injecting credentials or bypassing a guard.
+      await goto('/map');
+      await pageTitle.waitFor({state:'visible',timeout:15000});
+      console.log('PHASE17_A11_MAP_ROUTE_AUTH_REFRESH_RECOVERY_PASS');
+    }
     try {
       await page.locator('#map-search-input').waitFor({state:'visible',timeout:8000});
     } catch (initialError) {

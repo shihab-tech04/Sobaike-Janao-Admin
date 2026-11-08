@@ -118,9 +118,15 @@ export async function runPhase17A13({sql,page,browserBaseUrl,authorizedClient,pu
 
     await page.locator('#notification-filter-tab-all').click();
     await page.locator('#notification-card-'+records[1].id).waitFor({state:'visible'});
+    // Synthetic SQL rows were inserted after browser AuthContext initialized;
+    // use genuine Refresh to synchronize the header unread counter before
+    // invoking the existing Mark All UI (no client state bypass).
+    await page.locator('#notifications-refresh-btn').click();
+    await page.waitForFunction(()=>
+      document.querySelector('#notifications-mark-all-read-btn')?.disabled===false);
     await page.locator('#notifications-mark-all-read-btn').click();
-    await page.waitForFunction(()=>!document.querySelector('#notifications-mark-all-read-btn')?.disabled,
-      {timeout:3000}).catch(()=>{}); // disabled is expected once unread count is zero
+    await page.waitForFunction(()=>
+      document.querySelector('#notifications-mark-all-read-btn')?.disabled===true);
     const finalUnread=await authorizedClient.rpc('admin_get_unread_notification_count');
     assert.ifError(finalUnread.error);
     assert.equal(Number(finalUnread.data),0,

@@ -12,14 +12,16 @@ export async function runPhase17A12({
   assert.equal(new URL(browserBaseUrl).origin,'http://127.0.0.1:4173');
   assert.match(roleId,/^synthetic_moderator_[a-f0-9]{8}$/);
   assert.match(suffix,/^[a-f0-9]{8}$/);
-  const ids=['GRT','DNY','OLD'].map(kind => 'SYNTH-A12-'+kind+'-'+suffix.toUpperCase());
-  const prefix='SYNTH-A12-';
-  const marker="'"+prefix+"%'";
+  // Production enforces UUIDv4 for BOTH IDs, including fictional QA rows.
+  const ids=[0,1,2].map(i=>'00000000-0000-4000-8000-'+suffix+'000'+i);
+  const sessionIds=[0,1,2].map(i=>'11111111-1111-4111-8111-'+suffix+'000'+i);
+  const prefix='SyntheticOS';
+  const marker='('+ids.map(id=>"'"+id+"'").join(',')+')';
   const exec=text=>sql(text);
-  const count=()=>Number(exec('SELECT count(*) FROM public.public_visit_sessions WHERE visitor_id LIKE '+marker));
+  const count=()=>Number(exec('SELECT count(*) FROM public.public_visit_sessions WHERE visitor_id IN '+marker));
   const selectSynthetic=client=>client.from('public_visit_sessions')
     .select('visitor_id,session_id,permission_status,latitude,longitude,browser_name,device_category')
-    .like('visitor_id',prefix+'%').order('visitor_id');
+    .in('visitor_id',ids).order('visitor_id');
 
   assert.equal(count(),0,'Disposable A12 test must start without leftover sessions');
   const initiallyDenied=await selectSynthetic(authorizedClient);
@@ -60,12 +62,12 @@ export async function runPhase17A12({
       {id:ids[2],status:'prompt',lat:'NULL',lng:'NULL',
        accuracy:'NULL',browser:'Edge',device:'tablet',when:"now()-interval '10 days'"},
     ];
-    for(const f of fixtures) {
+    for(const [fixtureIndex,f] of fixtures.entries()) {
       exec('INSERT INTO public.public_visit_sessions('+
         'visitor_id,session_id,permission_status,latitude,longitude,accuracy_meters,'+
         'browser_name,browser_version,os_name,device_category,platform,language,timezone,'+
         'screen_width,screen_height,first_seen_at,last_seen_at,consented_at) VALUES ('+
-        "'"+f.id+"','"+f.id+"-S','"+f.status+"',"+f.lat+','+f.lng+','+f.accuracy+','+
+        "'"+f.id+"','"+sessionIds[fixtureIndex]+"','"+f.status+"',"+f.lat+','+f.lng+','+f.accuracy+','+
         "'"+f.browser+"','1.0','SyntheticOS','"+f.device+"','QA','en','Asia/Dhaka',"+
         "390,844,"+f.when+','+f.when+','+(f.status==='granted'?'now()':'NULL')+')');
     }
@@ -113,7 +115,7 @@ export async function runPhase17A12({
     assert.equal(await page.locator('tbody tr').count(),1);
     await page.locator('tbody tr').first().click();
     await page.getByText('Session & Location Details',{exact:true}).waitFor({state:'visible'});
-    await page.getByText(ids[0]+'-S',{exact:true}).first().waitFor({state:'visible'});
+    await page.getByText(sessionIds[0],{exact:true}).first().waitFor({state:'visible'});
     assert.equal(await page.getByText('23.780600',{exact:true}).count(),0,
       'A12 must never disclose persisted GPS, even for a consented synthetic session');
     await page.getByRole('button',{name:'Close',exact:true}).last().click();
@@ -163,7 +165,7 @@ export async function runPhase17A12({
     await page.getByText('Showing 2 of 2 total sessions').waitFor({state:'visible'});
     console.log('PHASE17_A12_TRANSIENT_READ_FAILURE_RETRY_RECOVERY_PASS');
   } finally {
-    if(seeded)exec("DELETE FROM public.public_visit_sessions WHERE visitor_id LIKE "+marker);
+    if(seeded)exec("DELETE FROM public.public_visit_sessions WHERE visitor_id IN "+marker);
     if(granted)grant(false);
   }
   assert.equal(count(),0,'Every fictional visitor session must be removed');

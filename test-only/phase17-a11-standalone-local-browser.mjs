@@ -5,6 +5,7 @@ import {createClient} from '@supabase/supabase-js';
 import {chromium} from 'playwright';
 import {createPhase17A11Fixture} from './phase17-a11-map-fixture.mjs';
 import {runPhase17A11} from './phase17-a11-map-monitoring-browser.mjs';
+import {runPhase17A12} from './phase17-a12-location-activity-browser.mjs';
 
 // Standalone A11: use the same already-started disposable Phase10 Supabase and
 // exact-source Admin preview, but a fresh fictional delegated map-only user.
@@ -134,7 +135,9 @@ try {
     removeMapReports:fixture.removeMapReports,
     mapIds:fixture.mapIds,readMapRows:fixture.readMapRows,
   });
-  assert.deepEqual(reporterRequests,[],'A11 delegated map browser requested private GPS');
+  await runPhase17A12({sql,roleId,suffix,page,browserBaseUrl,
+    authorizedClient:operator,publicClient});
+  assert.deepEqual(reporterRequests,[],'A11/A12 delegated browser must not request private complaint reporter GPS');
   assert.ok(![...unexpectedExternal].some(h=>h.endsWith('.supabase.co')),
     'A11 attempted to contact hosted Supabase');
   // The earlier signed-out redirect may attempt OSM tile loads before the

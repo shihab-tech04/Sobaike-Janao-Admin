@@ -102,10 +102,12 @@ export async function runPhase17A13({sql,page,browserBaseUrl,authorizedClient,pu
 
     await page.locator('#notification-filter-tab-security').click();
     await page.locator('#notification-card-'+records[16].id).waitFor({state:'visible'});
+    await page.waitForFunction(()=>document.querySelectorAll('[id^="notification-card-"]').length===1);
     assert.equal(await visibleCards().count(),1,
       'A13 security filter must show only the security event');
     await page.locator('#notification-filter-tab-unread').click();
     await page.locator('#notification-card-'+records[0].id).waitFor({state:'visible'});
+    await page.waitForFunction(()=>document.querySelectorAll('[id^="notification-card-"]').length===15);
     assert.equal(await page.locator('#notification-card-'+records[15].id).count(),0,
       'Previously-read notification must be absent from Unread');
     const firstId=records[0].id;

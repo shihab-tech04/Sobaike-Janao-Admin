@@ -62,7 +62,8 @@ export async function runPhase17A13({sql,page,browserBaseUrl,authorizedClient,pu
         quote('পরীক্ষামূলক বিজ্ঞপ্তি '+i)+","+
         quote('Synthetic disposable event only')+","+quote('শুধুমাত্র পরীক্ষা')+","+
         required+",now()-interval '"+(i+1)+" minutes',"+unreadSql+") RETURNING id";
-      const rowId=sql(query).trim();
+      // psql also prints the command tag `INSERT 0 1`; use the returned UUID row.
+      const rowId=sql(query).trim().split(/\r?\n/)[0];
       assert.match(rowId,/^[0-9a-f-]{36}$/i);
       records.push({id:rowId,index:i,gated});
     }

@@ -55,8 +55,16 @@ export async function runPhase17A08({
   await page.locator('#taxonomy-name-bn').fill('যাচাইকৃত পরীক্ষামূলক শ্রেণি');
   await page.locator('#taxonomy-sort-order').fill('91');
   await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
-  await page.locator('#refresh-taxonomy-btn').waitFor({ state: 'visible' });
-  const edited = readTaxonomyRow(syntheticId);
+  // Refresh is already visible before saving, so its visibility cannot prove
+  // the network write reached disposable SQL. Poll the authoritative row.
+  let edited;
+  for (let attempt=0;attempt<60;attempt++) {
+    edited=readTaxonomyRow(syntheticId);
+    if(edited?.name_en === 'A08 reviewed bilingual taxonomy' &&
+       edited?.name_bn === 'যাচাইকৃত পরীক্ষামূলক শ্রেণি' &&
+       Number(edited?.sort_order)===91)break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
   assert.equal(edited.name_en, 'A08 reviewed bilingual taxonomy');
   assert.equal(edited.name_bn, 'যাচাইকৃত পরীক্ষামূলক শ্রেণি');
   assert.equal(Number(edited.sort_order), 91);

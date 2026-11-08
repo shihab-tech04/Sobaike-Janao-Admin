@@ -5,6 +5,7 @@ import {createClient} from '@supabase/supabase-js';
 import {chromium} from 'playwright';
 import {createPhase17A11Fixture} from './phase17-a11-map-fixture.mjs';
 import {runPhase17A11} from './phase17-a11-map-monitoring-browser.mjs';
+import {runPhase17A12} from './phase17-a12-location-activity-browser.mjs';
 
 // Standalone A11: use the same already-started disposable Phase10 Supabase and
 // exact-source Admin preview, but a fresh fictional delegated map-only user.
@@ -121,7 +122,16 @@ try {
   await page.locator('#login-password').fill(password);
   await page.locator('form button[type="submit"]').click();
   await goto('/security/mfa');
-  await page.locator('#mfa-otp').waitFor({state:'visible'});
+  try {
+    await page.locator('#mfa-otp').waitFor({state:'visible',timeout:9000});
+  } catch {
+    // A fresh client login can briefly race the protected router's first
+    // authorization-context refresh. Navigate to the genuine MFA route once
+    // more; never inject an AAL2 session or fake successful authentication.
+    console.log('PHASE17_A11_LOCAL_MFA_ROUTE_TRANSIENT_RETRY');
+    await goto('/security/mfa');
+    await page.locator('#mfa-otp').waitFor({state:'visible',timeout:15000});
+  }
   await page.locator('#mfa-otp').fill(totp(enrollment.data.totp.secret));
   await page.locator('form button[type="submit"]').click();
   await page.locator('#mfa-otp').waitFor({state:'detached'});
@@ -134,7 +144,9 @@ try {
     removeMapReports:fixture.removeMapReports,
     mapIds:fixture.mapIds,readMapRows:fixture.readMapRows,
   });
-  assert.deepEqual(reporterRequests,[],'A11 delegated map browser requested private GPS');
+  await runPhase17A12({sql,roleId,suffix,page,browserBaseUrl,
+    authorizedClient:operator,publicClient});
+  assert.deepEqual(reporterRequests,[],'A11/A12 delegated browser must not request private complaint reporter GPS');
   assert.ok(![...unexpectedExternal].some(h=>h.endsWith('.supabase.co')),
     'A11 attempted to contact hosted Supabase');
   // The earlier signed-out redirect may attempt OSM tile loads before the

@@ -88,6 +88,9 @@ export async function runPhase17A12({
     await page.setViewportSize({width:1280,height:850});
     const origin=browserBaseUrl.replace(/\/$/,'');
     await page.goto(origin+'/#/location-activity',{waitUntil:'domcontentloaded'});
+    // The delegated permission is granted after initial app login, so reload
+    // the genuine AuthContext to resolve the fresh server permission profile.
+    await page.reload({waitUntil:'domcontentloaded'});
     await page.getByRole('heading',{name:'Location Activity',exact:true,level:1}).waitFor({state:'visible'});
     const search=page.getByPlaceholder('Search by Visitor ID, Session ID, Browser, OS, Platform, Timezone...');
     try {

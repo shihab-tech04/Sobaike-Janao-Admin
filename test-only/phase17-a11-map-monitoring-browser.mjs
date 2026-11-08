@@ -70,7 +70,9 @@ export async function runPhase17A11({
       // New AAL2 session / delegated permission refresh can race the first
       // protected-route request. Retry the *actual* route once rather than
       // mocking authorization, injecting credentials or bypassing a guard.
-      await goto('/map');
+      // A SPA hash navigation does not remount AuthContext. Reloading the
+      // already authenticated page re-reads the updated SQL permission set.
+      await page.reload({waitUntil:'domcontentloaded'});
       await pageTitle.waitFor({state:'visible',timeout:15000});
       console.log('PHASE17_A11_MAP_ROUTE_AUTH_REFRESH_RECOVERY_PASS');
     }

@@ -16,7 +16,7 @@ export async function runPhase17A16({
   const roleSlug='a15-synthetic-'+suffix;
   const origin=browserBaseUrl.replace(/\/$/,'');
   const baseArgs={p_limit:15,p_offset:0,p_search:roleSlug,p_actor_id:userId};
-  const count=()=>Number(sql('SELECT count(*) FROM public.admin_audit_logs WHERE target_type=\'role\' AND target_id='+
+  const count=()=>Number(sql('SELECT count(*) FROM public.admin_audit_logs WHERE lower(btrim(target_type))=\'role\' AND target_id='+
     q(roleSlug)+' AND actor_id='+q(userId)));
   assert.ok(count()>=3,'A16 needs genuine A15 created/updated/permission-replaced audit events');
   const anon=await publicClient.rpc('admin_list_audit_logs',baseArgs);

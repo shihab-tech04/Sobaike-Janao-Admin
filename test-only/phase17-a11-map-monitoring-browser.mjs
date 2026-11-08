@@ -60,7 +60,7 @@ export async function runPhase17A11({
 
     await page.setViewportSize({width:1280,height:850});
     await goto('/map');
-    await page.getByRole('heading',{name:'Map Monitoring',exact:true}).waitFor({state:'visible'});
+    await page.getByRole('heading',{name:'Map Monitoring',exact:true,level:1}).waitFor({state:'visible'});
     try {
       await page.locator('#map-search-input').waitFor({state:'visible',timeout:8000});
     } catch (initialError) {

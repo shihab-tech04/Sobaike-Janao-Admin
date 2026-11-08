@@ -26,8 +26,14 @@ export async function runPhase17A12({
   assert.ifError(initiallyDenied.error);
   assert.deepEqual(initiallyDenied.data,[],'AAL2 without location_activity.view must see zero rows');
   const anonymousDenied=await selectSynthetic(publicClient);
-  assert.ifError(anonymousDenied.error);
-  assert.deepEqual(anonymousDenied.data,[],'Anonymous caller must not see visitor sessions');
+  // Hosted/local schema intentionally does not GRANT SELECT to anon, so
+  // explicit SQL 42501 denial or RLS-filtered empty data are both fail-closed.
+  if(anonymousDenied.error) {
+    assert.equal(anonymousDenied.error.code,'42501');
+  } else {
+    assert.deepEqual(anonymousDenied.data,[],
+      'Anonymous caller must not see visitor sessions');
+  }
   const permissionBefore=await authorizedClient.rpc('has_permission',{p_permission_id:'location_activity.view'});
   assert.ifError(permissionBefore.error);
   assert.equal(permissionBefore.data,false);

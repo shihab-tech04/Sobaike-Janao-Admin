@@ -7,6 +7,7 @@ import {createPhase17A11Fixture} from './phase17-a11-map-fixture.mjs';
 import {runPhase17A11} from './phase17-a11-map-monitoring-browser.mjs';
 import {runPhase17A12} from './phase17-a12-location-activity-browser.mjs';
 import {runPhase17A13} from './phase17-a13-notification-center-browser.mjs';
+import {runPhase17A14} from './phase17-a14-admin-user-boundaries-browser.mjs';
 
 // Standalone A11: use the same already-started disposable Phase10 Supabase and
 // exact-source Admin preview, but a fresh fictional delegated map-only user.
@@ -149,6 +150,8 @@ try {
     authorizedClient:operator,publicClient});
   await runPhase17A13({sql,page,browserBaseUrl,
     authorizedClient:operator,publicClient,userId});
+  await runPhase17A14({sql,page,browserBaseUrl,
+    authorizedClient:operator,publicClient,userId,roleId});
   assert.deepEqual(reporterRequests,[],'A11/A12 delegated browser must not request private complaint reporter GPS');
   assert.ok(![...unexpectedExternal].some(h=>h.endsWith('.supabase.co')),
     'A11 attempted to contact hosted Supabase');

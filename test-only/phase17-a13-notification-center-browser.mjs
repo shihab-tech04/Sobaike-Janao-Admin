@@ -127,8 +127,15 @@ export async function runPhase17A13({sql,page,browserBaseUrl,authorizedClient,pu
     await page.locator('#notifications-mark-all-read-btn').click();
     await page.waitForFunction(()=>
       document.querySelector('#notifications-mark-all-read-btn')?.disabled===true);
-    const finalUnread=await authorizedClient.rpc('admin_get_unread_notification_count');
-    assert.ifError(finalUnread.error);
+    // NotificationContext optimistically disables the button before RPC
+    // completion. Await a real server readback (never accept optimistic UI).
+    let finalUnread=null;
+    for(let attempt=0;attempt<35;attempt++) {
+      finalUnread=await authorizedClient.rpc('admin_get_unread_notification_count');
+      assert.ifError(finalUnread.error);
+      if(Number(finalUnread.data)===0)break;
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
     assert.equal(Number(finalUnread.data),0,
       'Mark-all-read must persist for every visible delegated notification');
     assert.equal(sqlRead(records[17].id),'unread',

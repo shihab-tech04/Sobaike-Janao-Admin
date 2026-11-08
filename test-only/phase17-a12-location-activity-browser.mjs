@@ -88,7 +88,7 @@ export async function runPhase17A12({
     await page.setViewportSize({width:1280,height:850});
     const origin=browserBaseUrl.replace(/\/$/,'');
     await page.goto(origin+'/#/location-activity',{waitUntil:'domcontentloaded'});
-    await page.getByRole('heading',{name:'Location Activity',exact:true}).waitFor({state:'visible'});
+    await page.getByRole('heading',{name:'Location Activity',exact:true,level:1}).waitFor({state:'visible'});
     const search=page.getByPlaceholder('Search by Visitor ID, Session ID, Browser, OS, Platform, Timezone...');
     try {
       await search.waitFor({state:'visible',timeout:9000});

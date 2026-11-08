@@ -74,8 +74,28 @@ export async function runPhase17A15({
     await page.locator('#step2-next-btn').waitFor({state:'visible',timeout:15000});
     await page.locator('#step2-next-btn').click();
     await page.locator('#create-role-submit-btn').waitFor({state:'visible',timeout:15000});
+    // Require a real protected RPC response; a wizard click is not persistence.
+    const submitResponse=page.waitForResponse(response=>
+      response.url().includes('/rest/v1/rpc/admin_create_role'),{timeout:15000});
     await page.locator('#create-role-submit-btn').click();
-    await page.locator('#refresh-roles-btn').waitFor({state:'visible',timeout:15000});
+    const createdResponse=await submitResponse;
+    const createBody=await createdResponse.text();
+    if(!createdResponse.ok()) {
+      console.log('A15_LOCAL_CREATE_RPC_DIAGNOSTIC',JSON.stringify({
+        status:createdResponse.status(),body:createBody.slice(0,950),
+        url:page.url(),count:countRole(),
+      }));
+    }
+    assert.equal(createdResponse.status(),200,'A15 real UI create-role RPC must succeed');
+    try {
+      await page.locator('#refresh-roles-btn').waitFor({state:'visible',timeout:7500});
+    } catch {
+      console.log('A15_LOCAL_CREATE_NAV_DIAGNOSTIC',JSON.stringify({
+        url:page.url(),count:countRole(),
+        body:(await page.locator('body').innerText()).slice(-1600),
+      }));
+      throw new Error('A15 UI create-role did not navigate after protected RPC success');
+    }
     assert.equal(countRole(),1,'Role must persist through actual UI and protected SQL');
     assert.equal(sql('SELECT name_en FROM public.roles WHERE id='+q(roleSlug)),roleName);
     const readable=await authorizedClient.rpc('admin_get_role_detail',{p_role_id:roleSlug});

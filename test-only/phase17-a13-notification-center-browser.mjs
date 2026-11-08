@@ -22,11 +22,25 @@ export async function runPhase17A13({sql,page,browserBaseUrl,authorizedClient,pu
   console.log('PHASE17_A13_ANON_LIST_AND_READ_DENIED_PASS');
 
   const records=[];
+  const seededCatalogue=[];
   const cleanup=()=>{
     sql('DELETE FROM public.admin_notifications WHERE recipient_user_id='+quote(userId)+
       ' AND title_en LIKE '+quote(fixturePrefix+'%'));
   };
   try {
+    // The recovered disposable SQL schema can be intentionally devoid of
+    // canonical catalogue seed data; honour its real FK, do not disable it.
+    for (const [key,layer,severity] of [
+      ['role.created','administrative_oversight','info'],
+      ['role.permissions_changed','security_privilege','security'],
+    ]) {
+      const existing=Number(sql('SELECT count(*) FROM public.admin_notification_event_catalogue WHERE event_key='+quote(key)));
+      if(!existing) {
+        sql('INSERT INTO public.admin_notification_event_catalogue(event_key,category,default_layer,default_severity,active) VALUES ('+
+          quote(key)+",'role',"+quote(layer)+','+quote(severity)+',true)');
+        seededCatalogue.push(key);
+      }
+    }
     // 18 distinct, timestamp-ordered and recipient-scoped rows: real keyset
     // pagination (15+3), a security event, an older read item and an access
     // restricted role notification for an unauthorized delegated Admin.
@@ -137,6 +151,10 @@ export async function runPhase17A13({sql,page,browserBaseUrl,authorizedClient,pu
     console.log('PHASE17_A13_TRANSIENT_LIST_FAILURE_RETRY_RECOVERY_PASS');
   } finally {
     cleanup();
+    for(const key of seededCatalogue) {
+      sql('DELETE FROM public.admin_notification_event_catalogue WHERE event_key='+quote(key)+
+        ' AND NOT EXISTS (SELECT 1 FROM public.admin_notifications WHERE event_key='+quote(key)+')');
+    }
   }
   assert.equal(count(),0,'All A13 synthetic notifications must be removed');
   console.log('PHASE17_A13_SYNTHETIC_SQL_NOTIFICATION_CLEANUP_PASS');
